@@ -1,0 +1,16 @@
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nomor Rawat</th>
+          <th>Nomor SITB</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{$sitb_pasien.no_rawat}</td>
+          <td>{$sitb_pasien.no_sitb}</td>
+          <td>{if: $sitb_pasien.no_rawat !=''}<a href="" class="btn btn-xs btn-danger fa fa-edit edit_sitb" data-no_rawat="{$sitb_pasien.no_rawat}" data-no_sitb="{$sitb_pasien.no_sitb}"></a>{/if}</td>
+        </tr>
+      </tbody>
+    </table>

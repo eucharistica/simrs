@@ -1,0 +1,57 @@
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <h4 class="modal-title">Data SITB</h4>
+</div>
+<div class="modal-body">
+  <article class="row" id="data_sitb">
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Nomor Rekam Medis</label>
+            <input type="text" name="no_rkm_medis" class="form-control" placeholder="Nomor Rekam Medis" required value="{$no_rkm_medis}" readonly />
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Nomor SITB</label>
+            <input type="text" name="no_sitb" class="form-control" placeholder="Nomor SITB" required value="{$sitb_pasien.no_sitb}" />
+        </div>
+      </div>
+      <div class="col-md-12">
+      <button class="btn btn-success" id="simpan_sitb">Simpan</button>
+      </div>
+  </article>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
+</div>
+<script type="text/javascript">
+  // tombol simpan diklik
+  $("#data_sitb").on("click", "#simpan_sitb", function(event){
+    // alert('Test');
+    var baseURL = mlite.url + '/' + mlite.admin;
+    event.preventDefault();
+    var no_rkm_medis = $('input:text[name=no_rkm_medis]').val();
+    var no_sitb = $('input:text[name=no_sitb]').val();
+    
+    var url = baseURL + '/vedika/savesitb?t=' + mlite.token;
+
+    $.post(url,{
+      no_rkm_medis: no_rkm_medis,
+      no_sitb: no_sitb
+    } ,function(data) {
+      console.log(data);
+      alert('Data SITB nomor rawat ' + no_rkm_medis + ' telah disimpan!!');
+    //   $("#display_sitb").show().load(baseURL + '/vedika/displaysitb/{?=convertNoRawat($reg_periksa.no_rkm_medis)?}/?t=' + mlite.token);
+      //bersih();
+    });
+  });
+
+  $("#display_sitb").on("click",".edit_sitb", function(event){
+    var baseURL = mlite.url + '/' + mlite.admin;
+    event.preventDefault();
+    var no_sitb = $(this).attr("data-no_sitb");
+
+    $('input:text[name=no_sitb]').val(no_sitb);
+
+  });
+</script>

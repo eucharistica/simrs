@@ -1,0 +1,30 @@
+# Prevent directory listings
+Options -Indexes
+
+# Prevent visitors from viewing files directly
+<Files ~ "^.*\.(sdb|md)$">
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+        Satisfy All
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</Files>
+
+# URL rewrites
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(systems/|themes/|tmp/).*\.(php)$ - [F,L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<FilesMatch "\.pdf$">
+  Header always set Content-Type "application/pdf"
+  Header always set Content-Disposition "inline"
+  Header always set Content-Security-Policy "frame-ancestors 'self' https://rsudmatraman.my.id https://rsudmatraman.jakarta.go.id https://simrs.rsudmatraman.my.id"
+  Header always unset X-Frame-Options
+</FilesMatch>

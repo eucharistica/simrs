@@ -1,0 +1,111 @@
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <h4 class="modal-title">Resume Pasien Rawat Inap</h4>
+</div>
+<div class="modal-body">
+  <article class="row" id="resume_pasien">
+      <div class="col-md-6">
+        <div class="form-group">
+            <label>Nomor Rawat</label>
+            <input type="text" name="no_rawat_resume" class="form-control" placeholder="Nomor Rawat" required value="{$reg_periksa.no_rawat}" readonly />
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
+            <label>Cara Keluar</label>
+            <select name="cara_keluar" class="form-control">
+              <option value='Atas Izin Dokter'{if:  $resume_pasien.cara_keluar == 'Atas Izin Dokter'} selected{/if}>Atas Izin Dokter</option>
+              <option value='Pindah RS'{if:  $resume_pasien.cara_keluar == 'Pindah RS'} selected{/if}>Pindah RS</option>
+              <option value='Pulang Atas Permintaan Sendiri'{if:  $resume_pasien.cara_keluar == 'Pulang Atas Permintaan Sendiri'} selected{/if}>Pulang Atas Permintaan Sendiri</option>
+              <option value='Meninggal'{if:  $resume_pasien.cara_keluar == 'Meninggal'} selected{/if}>Meninggal</option>
+            </select>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Diagnosa Masuk</label>
+            <textarea name="diagnosa_awal" id="diagnosa_awal" class="form-control" cols="3">{if: $resume_pasien}{?=isset_or($resume_pasien.diagnosa_awal)?}{else}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Riwayat Penyakit Sekarang</label>
+            <textarea name="rps" id="rps" class="form-control" cols="3">{if: $resume_pasien}{?=isset_or($resume_pasien.keluhan_utama)?}{else}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Pemeriksaan Fisik</label>
+            <textarea name="ket_fisik" id="ket_fisik" class="form-control" cols="3">{if: $resume_pasien}{?=isset_or($resume_pasien.jalannya_penyakit)?}{else}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Terapi Pengobatan</label>
+            <textarea name="terapi" id="terapi" class="form-control" cols="3">{if: $resume_pasien}{?=isset_or($resume_pasien.terapi)?}{else}{?=isset_or($resume_pasien.terapi)?}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+          {if: $resume_pasien}
+          <button type="button" class="btn btn-success" id="simpan_resume">Simpan</button>
+          {else}
+          <button type="button" class="btn btn-success disabled" id="resume_baru">Simpan</button>
+          {/if}
+        
+      </div>
+  </article>
+
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
+</div>
+<script type="text/javascript">
+  $('select').selectator();
+</script>
+<script type="text/javascript">
+$(document).off("click.resume", "#simpan_resume").on("click.resume", "#simpan_resume", function(event){
+  event.preventDefault();
+
+  var baseURL = mlite.url + '/' + mlite.admin;
+  var no_rawat = $('input[name=no_rawat_resume]').val();
+  var cara_keluar = $('select[name=cara_keluar]').val();
+  var diagnosa_awal = $('textarea[name=diagnosa_awal]').val();
+  var rps = $('textarea[name=rps]').val();
+  var ket_fisik = $('textarea[name=ket_fisik]').val();
+  var terapi = $('textarea[name=terapi]').val();
+  var url = baseURL + '/vedika/saveresumeranap?t=' + mlite.token;
+
+  $.post(url, {
+    no_rawat: no_rawat,
+    cara_keluar: cara_keluar,
+    diagnosa_awal: diagnosa_awal,
+    rps: rps,
+    ket_fisik: ket_fisik,
+    terapi: terapi
+  })
+    .done(function(data) {
+    
+      $('#statusModal').one('hidden.bs.modal', function () {
+    
+        showToast('Data resume telah disimpan!!');
+    
+        setTimeout(function() {
+          window.location.reload();
+        }, 1800);
+    
+      });
+    
+      $('#statusModal').modal('hide');
+    
+    })
+    .fail(function() {
+      showToast('Gagal menyimpan data resume!', 'error');
+    });
+});
+
+$(document).off("click.resumeBaru", "#resume_baru").on("click.resumeBaru", "#resume_baru", function(event){
+  event.preventDefault();
+
+  alert('Input resume medis baru hanya boleh dari aplikasi SIMRS');
+});
+</script>

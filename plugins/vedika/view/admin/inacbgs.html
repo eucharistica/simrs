@@ -1,0 +1,1056 @@
+<!--vedika/view/admin/inacbgs.html-->
+<style media="screen">
+  .panel-heading-nav {
+    border-bottom: 0;
+    padding: 10px 0 0;
+  }
+
+  .panel-heading-nav .nav {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .nowrap th, td {
+    white-space: nowrap;
+  }
+</style> 
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span> Tutup</button>
+    <h4 class="modal-title">Bridging Inacbgs</h4>
+</div>
+<div class="modal-body" id="bridginginacbgs">
+  <div style="margin-top:20px;">
+    <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
+    <div class="row">
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Nama Pasien</label>
+        <input type="text" id="nm_pasien" name="nm_pasien" class="form-control" value="{$reg_periksa.nm_pasien}" readonly>
+      </div>
+    </div>
+    <div class="col col-md-1">
+      <div class="form-group">
+        <label for="poli">JK</label>  
+        <input type="text" id="jk" name="jk" class="form-control" value="{$jk.jk}" readonly>
+      </div>
+    </div>
+    <div class="col col-md-2">
+      <div class="form-group">
+        <label for="poli">Nomor RM</label>
+        <input type="text" id="no_rkm_medis" name="no_rkm_medis" class="form-control" value="{$reg_periksa.no_rkm_medis}" readonly>
+      </div>
+    </div>
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Nomor Rawat</label>
+        <input type="text" id="no_rawat" name="no_rawat" class="form-control" value="{$reg_periksa.no_rawat}" readonly>
+      </div>
+    </div>
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Nomor Kartu</label>
+        <input type="text" id="nokartu" name="nokartu" class="form-control" value="{$reg_periksa.no_peserta}" readonly>
+      </div>
+    </div>
+    </div>
+    <div class="row">
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Tanggal Registrasi</label>
+        <input type="text" id="tgl_registrasi" name="tgl_registrasi" class="form-control" value="{$reg_periksa.tgl_registrasi}" readonly>
+      </div>
+    </div>
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Poliklinik/Unit</label>
+        <input type="text" id="kd_poli" name="kd_poli" class="form-control" value="{$reg_periksa.nm_poli}" readonly>
+      </div>
+    </div>
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Dokter</label>
+          {if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli == 'U0021'}
+          <select class="form-control" name="nama_dokter">
+          <option value='dr. Christi Ervina Hartanto, Sp.KFR'>dr. Christi Ervina Hartanto, Sp.KFR</option>
+          </select>
+          <!--<input type="text" name="nama_dokter" class="form-control" value="dr. Christi Ervina Hartanto, Sp.KFR" readonly>-->
+          {/if}
+          
+          {if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli != 'U0021'}
+          <select class="form-control" name="nama_dokter">
+          <option value='{$reg_periksa.nm_dokter}'>{$reg_periksa.nm_dokter}</option>
+          </select>
+          <!--<input type="text" name="nama_dokter" class="form-control" value="{$reg_periksa.nm_dokter}" readonly>-->
+          {/if}
+        <!--<select class="form-control" name="nama_dokter">-->
+          <!--{if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli == 'U0021'}-->
+          <!--<option value='dr. Christi Ervina Hartanto, Sp.KFR'>dr. Christi Ervina Hartanto, Sp.KFR</option>-->
+          <!--<option value='{$reg_periksa.nm_dokter}'>{$reg_periksa.nm_dokter}</option>-->
+          <!--{/if}-->
+          <!--{if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli != 'U0021'}-->
+          <!--<option value='{$reg_periksa.nm_dokter}'>{$reg_periksa.nm_dokter}</option>-->
+          <!--{/if}-->
+        <!--</select>-->
+          {if: $reg_periksa.status_lanjut == 'Ranap'}
+          <select class="form-control" name="nama_dokter">
+            {loop: $reg_periksa.nm_dokter as $data}
+            <option value='{$data.nm_dokter}'>{$data.nm_dokter}</option>
+            {/loop}
+            </select>
+          {/if}
+      </div>
+    </div>
+    <div class="col col-md-3">
+      <div class="form-group">
+        <label for="poli">Cara Bayar</label>
+        <input type="text" id="noKartu" name="noKartu" class="form-control" value="{$reg_periksa.png_jawab}" readonly>
+      </div>
+    </div>
+    </div>
+    <div class="row">
+    <div class="col col-md-12" style="margin: 20px 0;">
+      <ul class="nav nav-tabs">
+        <li role="presentation" class="active">
+          <a href="#umum" aria-controls="umum" role="tab" data-toggle="tab">Data Umum</a>
+        </li>
+        <li role="presentation">
+          <a href="#tambahan" aria-controls="tambahan" role="tab" data-toggle="tab">Data Tambahan</a>
+        </li>
+        <li role="presentation">
+          <a href="#kelahiran" aria-controls="kelahiran" role="tab" data-toggle="tab">Data Kelahiran</a>
+        </li>
+        <li role="presentation">
+          <a href="#covid" aria-controls="covid" role="tab" data-toggle="tab">Data Covid</a>
+        </li>
+        <li role="presentation">
+          <a href="#biaya" aria-controls="biaya" role="tab" data-toggle="tab">Data Biaya</a>
+        </li>
+      </ul>
+    </div>
+    </div>
+
+    <div class="tab-content">
+      <div role="tabpanel" class="tab-pane fade in active" id="umum">
+      <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Nomor SEP</label>
+            <input type="text" id="nosep" name="nosep" class="form-control" value="{$reg_periksa.no_sep}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Tanggal Keluar</label>
+            <input type="text" id="keluar" name="keluar" class="form-control" value="{$reg_periksa.tgl_keluar}">
+          </div>
+        </div>
+        <!-- <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Jam Keluar</label>
+            <input type="text" id="jamkeluar" name="jamkeluar" class="form-control" value="{$reg_periksa.tgl_keluar}">
+          </div>
+        </div> -->
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="">Cara Masuk</label>
+            <select name="cara_masuk" class="form-control">
+               <option value="gp">Rujukan FKTP</option>
+               <option value="hosp-trans">Rujukan FKRTL</option>
+               <option value="mp">Rujukan Spesialis</option>
+               <option value="outp">Dari Rawat Jalan</option>
+               <option value="inp">Dari Rawat Inap</option>
+               <option value="emd">Dari Rawat Darurat</option>
+               <option value="born">Lahir di RS</option>
+               <option value="nursing">Rujukan Panti Jompo</option>
+               <option value="psych">Rujukan dari RS Jiwa</option>
+               <option value="rehab">Rujukan Fasilitas Rehab</option>
+               <option value="other">Lain-lain</option>
+            </select>
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Kelas Rawat</label>
+            <select name="kelas_rawat" class="form-control">
+            {if: $reg_periksa.status_lanjut == 'Ralan'}
+              <option value='3' selected>Kelas Reguler</option>
+            {else}
+              <option value='1'{if: $reg_periksa.kelas_rawat == '1'} selected{/if}>Kelas 1</option>
+              <option value='2'{if: $reg_periksa.kelas_rawat == '2'} selected{/if}>Kelas 2</option>
+              <option value='3'{if: $reg_periksa.kelas_rawat == '3'} selected{/if}>Kelas 3</option>
+            {/if}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Status Pulang</label>
+            <select name="discharge_status" class="form-control">
+              {if: $reg_periksa.stts_pulang == 'Sembuh'}
+              <option value='1'>Atas persetujuan dokter</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Sehat'}
+              <option value='1'>Atas persetujuan dokter</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Rujuk'}
+              <option value='2'>Dirujuk</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Dirujuk'}
+              <option value='2'>Dirujuk</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'APS'}
+              <option value='3'>Atas permintaan sendiri</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Pulang Paksa'}
+              <option value='3'>Atas permintaan sendiri</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Meninggal'}
+              <option value='4'>Meninggal</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == '+'}
+              <option value='4'>Meninggal</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Atas Persetujuan Dokter'}
+              <option value='1'>Atas persetujuan dokter</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Atas Permintaan Sendiri'}
+              <option value='3'>Atas permintaan sendiri</option>
+              {/if}
+              {if: $reg_periksa.stts_pulang == 'Lain-lain'}
+              <option value='5'>Lain-lain</option>
+              {/if}
+              <option value='1'>Atas persetujuan dokter</option>
+              <option value='2'>Dirujuk</option>
+              <option value='3'>Atas permintaan sendiri</option>
+              <option value='4'>Meninggal</option>
+              <option value='5'>Lain-lain</option>
+            </select>
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="">Tensi</label>
+            <div class="input-group">
+              <input type="text" id="sistole" name="sistole" class="form-control" value="{$reg_periksa.sistole}"/>
+              <span class="input-group-addon">/</span>
+              <input type="text" id="diastole" name="diastole" class="form-control" value="{$reg_periksa.diastole}"/>
+            </div>
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Diagnosa</label>
+            <input type="text" id="diagnosa" name="diagnosa" class="form-control" value="{$penyakit}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Prosedur</label>
+            <input type="text" id="procedure" name="procedure" class="form-control" value="{$prosedur}">
+          </div>
+        </div>
+      </div>
+      <div class="row">
+          <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">No. SITB</label>
+            <input type="text" id="sitb" name="sitb" class="form-control" value="{$sitb.no_sitb}">
+          </div>
+        </div>
+      </div>
+      </div>
+      <div role="tabpanel" class="tab-pane fade" id="tambahan">
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Upgrade Kelas</label>
+              <select name="upgrade_class_ind" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Naik ke Kelas</label>
+              <select name="upgrade_class_class" class="form-control">
+                 <option value=""></option>
+                 <option value="kelas_1">Kelas 1</option>
+                 <option value="kelas_2">Kelas 2</option>
+                 <option value="vip">Kelas VIP</option>
+                 <option value="vvip">Kelas VVIP</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Lama Hari Naik Kelas</label>
+              <input type="text" id="upgrade_class_los" name="upgrade_class_los" class="form-control" value="0">
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">P.J Naik Kelas</label>
+              <select name="upgrade_class_class" class="form-control">
+                 <option value=""></option>
+                 <option value="peserta">Peserta</option>
+                 <option value="pemberi_kerja">Pemberi Kerja</option>
+                 <option value="asuransi_tambahan">Asuransi Tambahan</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Kantong Darah</label>
+              <input type="text" id="kantong_darah" name="kantong_darah" class="form-control" value="0">
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">ADL Sub Acute</label>
+              <select name="adl_sub_acute" class="form-control">
+                  <option value=""></option>
+                  {loop: $adl}
+                  <option value="{$value}">{$value}</option>
+                  {/loop}
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">ADL Chronic</label>
+              <select name="adl_chronic" class="form-control">
+                  <option value=""></option>
+                  {loop: $adl}
+                  <option value="{$value}">{$value}</option>
+                  {/loop}
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">ICU/Hari</label>
+              <div class="input-group">
+                <input type="text" id="icu_indikator" name="icu_indikator" class="form-control" value="0"/>
+                <span class="input-group-addon">/</span>
+                <input type="text" id="icu_los" name="icu_los" class="form-control" value="0"/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Ventilator/Jam</label>
+              <div class="input-group">
+                <input type="text" id="use_ind" name="use_ind" class="form-control" value="0"/>
+                <span class="input-group-addon">/</span>
+                <input type="text" id="ventilator_hour" name="ventilator_hour" class="form-control" value="0"/>
+              </div>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Mulai Pemakaian</label>
+              <input type="text" id="start_dttm" name="start_dttm" class="form-control tanggaljam" value="">
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Selesai Pemakaian</label>
+              <input type="text" id="stop_dttm" name="stop_dttm" class="form-control tanggaljam" value="">
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Hemodialisa</label>
+              <select name="dializer_single_use" class="form-control">
+                 <option></option>
+                 <option value="1">Multiple Use</option>
+                 <option value="0">Single Use</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div role="tabpanel" class="tab-pane fade" id="kelahiran">
+      <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="">Usia Kehamilan</label>
+            <input type="text" id="usia_kehamilan" name="usia_kehamilan" class="form-control" value="">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="">Onset Kontraksi</label>
+            <select name="onset_kontraksi" class="form-control">
+              <option value="spontan">Spontan</option>
+              <option value="induksi">Induksi</option>
+              <option value="non_spontan_non_induksi">Non Spontan / Non Induksi</option>
+            </select>
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="">Waktu Kelahiran</label>
+            <input type="text" id="delivery_dttm" name="delivery_dttm" class="form-control tanggaljam" value="">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="">Cara Kelahiran</label>
+            <select name="delivery_method" id="delivery_method" class="form-control">
+              <option value="vaginal">Vaginal</option>
+              <option value="sc">SC</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="row" id="delivery_method_sc">
+        <div class="col col-md-4">
+          <div class="form-group">
+            <label for="">Manual</label>
+            <select name="use_manual" class="form-control">
+              <option value="0">Tidak</option>
+              <option value="1">Ya</option>
+            </select>
+          </div>
+        </div>
+        <div class="col col-md-4">
+          <div class="form-group">
+            <label for="">Forcep</label>
+            <select name="use_forcep" class="form-control">
+              <option value="0">Tidak</option>
+              <option value="1">Ya</option>
+            </select>
+          </div>
+        </div>
+        <div class="col col-md-4">
+          <div class="form-group">
+            <label for="">Vacuum</label>
+            <select name="use_vacuum" class="form-control">
+              <option value="0">Tidak</option>
+              <option value="1">Ya</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col col-md-4">
+          <div class="form-group">
+            <label for="poli">Berat Saat Lahir</label>
+            <input type="text" id="birth_weight" name="birth_weight" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-4">
+          <div class="form-group">
+            <label for="poli">Letak Janin</label>
+            <select name="letak_janin" class="form-control">
+              <option value="kepala">Kepala</option>
+              <option value="sungsang">Sungsang</option>
+              <option value="lintang">Lintang</option>
+            </select>
+          </div>
+        </div>
+        <div class="col col-md-4">
+          <div class="form-group">
+            <label for="">Kodisi Janin</label>
+            <select name="kondisi" class="form-control">
+              <option value="livebirth">Hidup</option>
+              <option value="stillbirth">Meninggal</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Apgar Score</label>
+            <input type="text" class="form-control" value="1 Menit" disabled>
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Appareance</label>
+            <input type="text" id="appareance_1" name="appareance_1" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Pulse</label>
+            <input type="text" id="pulse_1" name="pulse_1" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Grimace</label>
+            <input type="text" id="grimace_1" name="grimace_1" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Acivityt</label>
+            <input type="text" id="activity_1" name="activity_1" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Respiration</label>
+            <input type="text" id="respiration_1" name="respiration_1" class="form-control" value="0">
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Apgar Score</label>
+            <input type="text" class="form-control" value="5 Menit" disabled>
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Appareance</label>
+            <input type="text" id="appareance_5" name="appareance_5" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Pulse</label>
+            <input type="text" id="pulse_5" name="pulse_5" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Grimace</label>
+            <input type="text" id="grimace_5" name="grimace_5" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Acivityt</label>
+            <input type="text" id="activity_5" name="activity_5" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="col col-md-2">
+          <div class="form-group">
+            <label for="">Respiration</label>
+            <input type="text" id="respiration_5" name="respiration_5" class="form-control" value="0">
+          </div>
+        </div>
+      </div>
+      </div>
+      <div role="tabpanel" class="tab-pane fade" id="covid">
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Pemulasaraan Jenazah</label>
+              <select name="pemulasaraan_jenazah" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Kantong Jenazah</label>
+              <select name="kantong_jenazah" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Peti Jenazah</label>
+              <select name="peti_jenazah" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Plastik Erat</label>
+              <select name="plastik_erat" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Desinfektan Jenazah</label>
+              <select name="desinfektan_jenazah" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Mobil Jenazah</label>
+              <select name="upgrade_class_ind" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Desinfektan Mobil</label>
+              <select name="upgrade_class_ind" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Nomor Kartu</label>
+              <select name="nomor_kartu_t" class="form-control">
+                 <option value="nik">NIK</option>
+                 <option value="kitas">Kitas/Kitap</option>
+                 <option value="paspor">Paspor</option>
+                 <option value="kartu_jkn">Kartu Peserta JKN</option>
+                 <option value="kk">Kartu Keluarga</option>
+                 <option value="unhcr">UNHCR</option>
+                 <option value="kelurahan">Kelurahan</option>
+                 <option value="dinsos">Dinas Sosial</option>
+                 <option value="dinkes">Dinas Kesehatan</option>
+                 <option value="sjp">Surat Jaminan Perawatan</option>
+                 <option value="klaim_ibu">Bayi Baru Lahir</option>
+                 <option value="lainnya">Lainnya</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Status</label>
+              <select name="covid19_status_cd" class="form-control">
+                 <option value="1">ODP</option>
+                 <option value="2">PDP</option>
+                 <option value="3">Terkonfirmasi</option>
+                 <option value="4">Suspek</option>
+                 <option value="5">Probable</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Indikator CC</label>
+              <select name="covid19_cc_ind" class="form-control">
+                 <option value="0">Tidak Ada</option>
+                 <option value="1">Ada</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">RS Darurat</label>
+              <select name="covid19_rs_darurat_ind" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Co Insiden</label>
+              <select name="covid19_co_insidense_ind" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Episode</label>
+              <input type="text" id="episodes" name="episodes" class="form-control" value="">
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="">Terapi Konvalesen</label>
+              <input type="text" id="terapi_konvalesen" name="terapi_konvalesen" class="form-control" value="">
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Akses NAAT</label>
+              <select name="akses_naat" class="form-control">
+                 <option value="A">A</option>
+                 <option value="B">B</option>
+                 <option value="C">C</option>
+              </select>
+            </div>
+          </div>
+          <div class="col col-md-3">
+            <div class="form-group">
+              <label for="poli">Isoman</label>
+              <select name="isoman_ind" class="form-control">
+                 <option value="0">Tidak</option>
+                 <option value="1">Ya</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div role="tabpanel" class="tab-pane fade" id="biaya">
+        <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Prosedur Non Bedah</label>
+            <input type="text" id="prosedur_non_bedah" name="prosedur_non_bedah" class="form-control" value="{$biaya_non_bedah}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Prosedur Bedah</label>
+            <input type="text" id="prosedur_bedah" name="prosedur_bedah" class="form-control" value="{$biaya_bedah}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Konsultasi</label>
+            <input type="text" id="konsultasi" name="konsultasi" class="form-control" value="{$biaya_konsultasi}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Tenaga Ahli</label>
+            <input type="text" id="tenaga_ahli" name="tenaga_ahli" class="form-control" value="{$biaya_tenaga_ahli}">
+          </div>
+        </div>
+        </div>
+        <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Keperawatan</label>
+            <input type="text" id="keperawatan" name="keperawatan" class="form-control" value="{$biaya_keperawatan}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Penunjang</label>
+            <input type="text" id="penunjang" name="penunjang" class="form-control" value="{$biaya_penunjang}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Radiologi</label>
+            <input type="text" id="radiologi" name="radiologi" class="form-control" value="{$biaya_radiologi}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Laboratorium</label>
+            <input type="text" id="laboratorium" name="laboratorium" class="form-control" value="{$biaya_laboratorium}">
+          </div>
+        </div>
+        </div>
+        <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Pelayanan Darah</label>
+            <input type="text" id="pelayanan_darah" name="pelayanan_darah" class="form-control" value="{$biaya_pelayanan_darah}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Rehabilitasi</label>
+            <input type="text" id="rehabilitasi" name="rehabilitasi" class="form-control" value="{$biaya_rehabilitasi}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Kamar</label>
+            <input type="text" id="kamar" name="kamar" class="form-control" value="{$biaya_kamar}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Rawat Intensif</label>
+            <input type="text" id="rawat_intensif" name="rawat_intensif" class="form-control" value="{$biaya_rawat_intensif}">
+          </div>
+        </div>
+        </div>
+        <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Obat</label>
+            <input type="text" id="obat" name="obat" class="form-control" value="{$biaya_obat}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Obat Kronis</label>
+            <input type="text" id="obat_kronis" name="obat_kronis" class="form-control" value="{$biaya_obat_kronis}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Obat Kemoterapi</label>
+            <input type="text" id="obat_kemoterapi" name="obat_kemoterapi" class="form-control" value="{$biaya_obat_kemoterapi}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Alkes</label>
+            <input type="text" id="alkes" name="alkes" class="form-control" value="{$biaya_alkes}">
+          </div>
+        </div>
+        </div>
+        <div class="row">
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">BMHP</label>
+            <input type="text" id="bmhp" name="bmhp" class="form-control" value="{$biaya_bmhp}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Sewa Alat</label>
+            <input type="text" id="sewa_alat" name="sewa_alat" class="form-control" value="{$biaya_sewa_alat}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Poli Eksekutif</label>
+            <input type="text" id="tarif_poli_eks" name="tarif_poli_eks" class="form-control" value="{$biaya_tarif_poli_eks}">
+          </div>
+        </div>
+        <div class="col col-md-3">
+          <div class="form-group">
+            <label for="poli">Biaya Tambahan</label>
+            <input type="text" id="add_payment_pct" name="add_payment_pct" class="form-control" value="{$biaya_add_payment_pct}">
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+    <div class="col col-md-12" style="margin: 20px 0;">
+      <button type="button" class="btn btn-success simpanbridging">
+          Set Klaim
+      </button>
+      <button type="button" class="btn btn-warning editklaim">
+          Edit Klaim
+      </button>
+    </div>
+    </div>
+  </div>
+  <h3>Data Claim</h3>
+  <div class="table-responsive">
+    <table class="table nowrap" width="100%">
+      <thead>
+        <tr>
+          <th>Nomor SEP</th>
+          <th>Diagnosa</th>
+          <th>Prosedur</th>
+          <th>Kode CBG</th>
+          <th>Deskripsi</th>
+          <th>Tarif Klaim</th> 
+          <th>Kode IDRG</th>
+          <th>Deskripsi IDRG</th>
+          <th>Tarif RS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><a href="{?=url([ADMIN,'vedika','klaimpdf','{$get_claim_data.response.data.nomor_sep}'])?}" target="_blank">{$get_claim_data.response.data.nomor_sep}</a></td>
+          <td>{$get_claim_data.response.data.diagnosa}</td>
+          <td>{$get_claim_data.response.data.procedure}</td>
+          <td>{$get_claim_data.response.data.grouper.response_inacbg.cbg.code}</td>
+          <td>{$get_claim_data.response.data.grouper.response_inacbg.cbg.description}</td>
+          <td>{$get_claim_data.response.data.grouper.response_inacbg.tariff}</td>
+          <td>{$get_claim_data.response.data.grouper.response_idrg.drg_code}</td>
+          <td>{$get_claim_data.response.data.grouper.response_idrg.drg_description}</td>
+          <td>{?=$get_claim_data.response.data.tarif_rs.prosedur_non_bedah + $get_claim_data.response.data.tarif_rs.prosedur_bedah + $get_claim_data.response.data.tarif_rs.konsultasi + $get_claim_data.response.data.tarif_rs.tenaga_ahli + $get_claim_data.response.data.tarif_rs.keperawatan + $get_claim_data.response.data.tarif_rs.penunjang + $get_claim_data.response.data.tarif_rs.radiologi + $get_claim_data.response.data.tarif_rs.laboratorium + $get_claim_data.response.data.tarif_rs.pelayanan_darah + $get_claim_data.response.data.tarif_rs.rehabilitasi + $get_claim_data.response.data.tarif_rs.kamar + $get_claim_data.response.data.tarif_rs.rawat_intensif + $get_claim_data.response.data.tarif_rs.obat + $get_claim_data.response.data.tarif_rs.obat_kronis + $get_claim_data.response.data.tarif_rs.obat_kemoterapi + $get_claim_data.response.data.tarif_rs.alkes + $get_claim_data.response.data.tarif_rs.bmhp + $get_claim_data.response.data.tarif_rs.sewa_alat?}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
+</div>
+<script type="text/javascript">
+  $('select').selectator();
+</script>
+<script type="text/javascript">
+    $(function () {
+        $('.tanggaljam').datetimepicker({
+          format: 'YYYY-MM-DD HH:mm:ss',
+          locale: 'id'
+        });
+    });
+   $(function () {
+       $('.tanggal').datetimepicker({
+         format: 'YYYY-MM-DD',
+         locale: 'id'
+       });
+   });
+   $(function () {
+       $('.jam').datetimepicker({
+         format: 'HH:mm:ss',
+         locale: 'id'
+       });
+   });
+</script>
+<script type="text/javascript">
+  function renderStep(label, status) {
+    if (status === true) return "✅ " + label;
+    if (status === false) return "❌ " + label;
+    return "⏸ " + label;
+  }
+
+  $("#bridginginacbgs")
+    .off("click.simpanbridging", ".simpanbridging")
+    .on("click.simpanbridging", ".simpanbridging", function (event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    var tombol = $(this);
+
+    var baseURL = mlite.url + '/' + mlite.admin;
+    var url = baseURL + '/vedika/prosesklaimfull?t=' + mlite.token;
+
+    // Ambil semua input & select
+    var dataForm = {};
+    $('#bridginginacbgs').find('input, select').each(function () {
+      var name = $(this).attr('name');
+      if (name) dataForm[name] = $(this).val() || '';
+    });
+
+    // Hardcode coder
+    dataForm['coder_nik'] = '123123123123';
+
+    bootbox.confirm("Proses akan dilanjutkan sampai Kirim Data Center. Lanjutkan?", function (result) {
+      if (!result) return;
+
+      tombol.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
+
+      $.post(url, dataForm, function (res) {
+        console.log(res);
+
+        if (!res || !res.steps) {
+          bootbox.alert("Response tidak valid dari server.");
+          return;
+        }
+
+        var s = res.steps;
+        var output = [
+          renderStep('Buat Klaim', s.buat_klaim),
+          renderStep('Set Klaim', s.set_klaim),
+          renderStep('Grouper IDRG', s.grouper_idrg),
+          renderStep('Final IDRG', s.final_idrg),
+          renderStep('Grouper INACBG', s.grouper_inacbg),
+          renderStep('Final INACBG', s.final_inacbg),
+          renderStep('Final Klaim', s.final_klaim),
+          renderStep('Kirim Data Center', s.kirim_datacenter)
+        ].join("\n");
+
+        bootbox.alert({
+          title: res.ok ? "Proses Klaim Selesai" : "Proses Klaim Terhenti",
+          message: "<pre style='text-align:left'>" + output + "</pre>"
+        });
+
+        if (!res.ok) {
+          console.error("Stop di step:", res.last_step, res.error);
+        }
+
+      }, 'json').fail(function (xhr, status, error) {
+        console.error("AJAX Error:", status, error);
+        bootbox.alert("Gagal menghubungi server.");
+      }).always(function () {
+        // Modal dan halaman lengkap tetap berada pada item yang sedang dibuka.
+        tombol.prop('disabled', false).html('Set Klaim');
+      });
+    });
+  });
+</script>
+
+<script type="text/javascript">
+$("#bridginginacbgs").off("click.editklaim", ".editklaim").on("click.editklaim", ".editklaim", function (event) {
+  event.preventDefault();
+
+  var baseURL = mlite.url + '/' + mlite.admin;
+  var url = baseURL + '/vedika/editklaim?t=' + mlite.token;
+  var nosep = $('input[name=nosep]').val();
+
+  if (!nosep) {
+    showToastSafe("Nomor SEP kosong.", "error");
+    return;
+  }
+
+  bootbox.confirm("Apakah Anda yakin ingin edit klaim?", function (result) {
+    if (!result) return;
+
+    console.group("Edit Klaim INACBG");
+    console.log("SEP :", nosep);
+    console.log("URL :", url);
+
+    $.post(url, { nosep: nosep })
+      .done(function (res) {
+        if (typeof res === "string") {
+          res = JSON.parse(res);
+        }
+
+        console.log("Response Full:", res);
+
+        console.group("Reedit Claim");
+        console.log(res.data ? res.data.reedit_claim : null);
+        console.groupEnd();
+
+        console.group("IDRG Grouper Reedit");
+        console.log(res.data ? res.data.idrg_grouper_reedit : null);
+        console.groupEnd();
+
+        console.groupEnd();
+
+        if (res.metadata && res.metadata.code == 200) {
+          showToastSafe(
+            "Edit klaim berhasil diproses. SEP: " + nosep,
+            "success"
+          );
+        } else {
+          var pesan = res.metadata && res.metadata.message ? res.metadata.message : "Edit klaim gagal";
+          showToastSafe(pesan, "error");
+        }
+      })
+      .fail(function (xhr, status, error) {
+        console.group("Request Error");
+        console.error("Status :", status);
+        console.error("Error :", error);
+        console.error("Response :", xhr.responseText);
+        console.groupEnd();
+
+        showToastSafe("Request error saat edit klaim.", "error");
+      });
+  });
+});
+</script>
+
+<script>
+  $(function() {
+      $('#delivery_method_sc').show();
+      $('#delivery_method').change(function(){
+          if($('#delivery_method').val() == 'sc') {
+              $('#delivery_method_sc').hide();
+          } else {
+              $('#delivery_method_sc').show();
+          }
+      });
+  });
+</script>
