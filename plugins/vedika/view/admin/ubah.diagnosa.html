@@ -1,6 +1,7 @@
 <div class="modal-header">
-    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span> Tutup</button>
-    <h4 class="modal-title">Ubah Diagnosa</h4>
+  <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span>
+    Tutup</button>
+  <h4 class="modal-title">Ubah Diagnosa</h4>
 </div>
 <div class="modal-body">
 
@@ -14,7 +15,7 @@
               <div class="form-group icd10">
                 <label for="">Diagnosa (ICD 10)</label>
                 <button id="filter" class="btn btn-default">
-                    <span id="kode_icd10">kode</span>
+                  <span id="kode_icd10">kode</span>
                 </button>
                 <div class="btn-group">
                   <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
@@ -50,7 +51,7 @@
   </div>
   <div class="table-responsive no-margin" id="data_diagnosa">
     <p>Angka prioritas terkecil akan jadi diagnosa utama/primary</p>
-    <p>Mulai dari 1 aja ya jangan 0 lagi</p>    
+    <p>Mulai dari 1 aja ya jangan 0 lagi</p>
     <table class="table">
       <thead>
         <tr>
@@ -65,8 +66,11 @@
         <tr>
           <td>{$value.kd_penyakit}</td>
           <td>{$value.nm_penyakit}</td>
-          <td contenteditable="true" data-old_value="{$value.prioritas}" onBlur="savePrioritas(this,'prioritas','{$value.no_rawat}','{$value.kd_penyakit}','{$status_lanjut}')" onClick="highlightEdit(this);">{$value.prioritas}</td>
-          <td><a href="" class="btn btn-xs btn-danger fa fa-trash hapus_diagnosa" data-no_rawat="{$value.no_rawat}" data-kd_penyakit="{$value.kd_penyakit}" data-prioritas="{$value.prioritas}"></a></td>
+          <td contenteditable="true" data-old_value="{$value.prioritas}"
+            onBlur="savePrioritas(this,'prioritas','{$value.no_rawat}','{$value.kd_penyakit}','{$status_lanjut}')"
+            onClick="highlightEdit(this);">{$value.prioritas}</td>
+          <td><a href="" class="btn btn-xs btn-danger fa fa-trash hapus_diagnosa" data-no_rawat="{$value.no_rawat}"
+              data-kd_penyakit="{$value.kd_penyakit}" data-prioritas="{$value.prioritas}"></a></td>
         </tr>
         {/loop}
       </tbody>
@@ -76,47 +80,45 @@
 </div>
 
 <div class="modal-footer">
-    <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
+  <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
 </div>
 
 <script type="text/javascript">
   $(document).ready(function () {
     $(".icd10 .dropdown-menu li a").click(function () {
-        var prioritas_icd10 = $(this).text();
-        $(this).closest('.form-group').find('#prioritas_icd10').text(prioritas_icd10);
+      var prioritas_icd10 = $(this).text();
+      $(this).closest('.form-group').find('#prioritas_icd10').text(prioritas_icd10);
     });
   });
 </script>
 
 <script>
-  $('#icd10').keyup(function(){
-       var query = $(this).val();
-       if(query != '')
-       {
-            $.ajax({
-                 url: "{?=url([ADMIN, 'icd', 'icd10rs'])?}",
-                 method:"POST",
-                 data:{query:query},
-                 success:function(data)
-                 {
-                      $('#icd10List').fadeIn();
-                      $('#icd10List').html(data);
-                 }
-            });
-       }
-       $('#icd10List').fadeIn();
+  $('#icd10').keyup(function () {
+    var query = $(this).val();
+    if (query != '') {
+      $.ajax({
+        url: "{?=url([ADMIN, 'icd', 'icd10rs'])?}",
+        method: "POST",
+        data: { query: query },
+        success: function (data) {
+          $('#icd10List').fadeIn();
+          $('#icd10List').html(data);
+        }
+      });
+    }
+    $('#icd10List').fadeIn();
   });
-  $('#icd10List').on('click', 'li', function(){
-       $('#icd10').val($(this).text().split(': ')[1]);
-       $('#kode_icd10').text($(this).text().split(': ')[0]);
-       var kode_icd10 = $('#kode_icd10').val();
-       $('#icd10List').fadeOut();
+  $('#icd10List').on('click', 'li', function () {
+    $('#icd10').val($(this).text().split(': ')[1]);
+    $('#kode_icd10').text($(this).text().split(': ')[0]);
+    var kode_icd10 = $('#kode_icd10').val();
+    $('#icd10List').fadeOut();
   });
 </script>
 
 <script type="text/javascript">
   // tombol simpan diklik
-  $("#icd10dan9").on("click", "#simpan_icd10", function(event){
+  $("#icd10dan9").on("click", "#simpan_icd10", function (event) {
     var baseURL = mlite.url + '/' + mlite.admin;
     event.preventDefault();
     var no_rawat = $('#statusModal input:hidden[name=no_rawat]').val();
@@ -127,13 +129,13 @@
 
     var url = baseURL + '/icd/saveicd10?t=' + mlite.token;
 
-    $.post(url,{
+    $.post(url, {
       no_rawat: no_rawat,
       prioritas: prioritas,
       nama: nama,
       status: status,
       kd_penyakit: kode
-    } ,function(data) {
+    }, function (data) {
       alert('Data diagnosa ' + kode + ' telah disimpan!!');
       $("#data_diagnosa").show().load(baseURL + '/vedika/displaydiagnosa/' + status + '/{?=convertNoRawat($no_rawat)?}/?t=' + mlite.token);
     });
@@ -142,7 +144,7 @@
 <script type="text/javascript">
 
   // ketika tombol hapus ditekan
-  $("#data_diagnosa").on("click",".hapus_diagnosa", function(event){
+  $("#data_diagnosa").on("click", ".hapus_diagnosa", function (event) {
     var baseURL = mlite.url + '/' + mlite.admin;
     event.preventDefault();
     var url = baseURL + '/vedika/hapusdiagnosa?t=' + mlite.token;
@@ -151,15 +153,15 @@
     var prioritas = $(this).attr("data-prioritas");
 
     // tampilkan dialog konfirmasi
-    bootbox.confirm("Apakah Anda yakin ingin menghapus data ini?", function(result){
+    bootbox.confirm("Apakah Anda yakin ingin menghapus data ini?", function (result) {
       // ketika ditekan tombol ok
-      if (result){
+      if (result) {
         // mengirimkan perintah penghapusan
         $.post(url, {
           no_rawat: no_rawat,
           kd_penyakit: kd_penyakit,
           prioritas: prioritas
-        } ,function(data) {
+        }, function (data) {
           // sembunyikan form, tampilkan data yang sudah di perbaharui, tampilkan notif
           //$("#display").load(baseURL + '/rawat_jalan/display?t=' + mlite.token);
           //bersih();
@@ -178,25 +180,25 @@
 </script>
 <script>
   function highlightEdit(editableObj) {
-  	$(editableObj).css("background","#FFF");
+    $(editableObj).css("background", "#FFF");
   }
-  function savePrioritas(editableObj,column,no_rawat,kd_penyakit,status) {
-  	// no change change made then return false
-  	if($(editableObj).attr('data-old_value') === editableObj.innerHTML)
-  	return false;
-  	// send ajax to update value
-  	$(editableObj).css("background","#FFF url({?=url()?}/assets/img/loader.gif) no-repeat right");
-  	$.ajax({
-  		url: "{?=url([ADMIN,'vedika','saveprioritas'])?}",
-  		cache: false,
-  		data:'column='+column+'&prioritas='+editableObj.innerHTML+'&no_rawat='+no_rawat+'&kd_penyakit='+kd_penyakit+'&status='+status,
-  		success: function(response)  {
-  			console.log(response);
-  			// set updated value as old value
-  			$(editableObj).attr('data-old_value',editableObj.innerHTML);
-  			$(editableObj).css("background","#FDFDFD");
-  		}
-     });
+  function savePrioritas(editableObj, column, no_rawat, kd_penyakit, status) {
+    // no change change made then return false
+    if ($(editableObj).attr('data-old_value') === editableObj.innerHTML)
+      return false;
+    // send ajax to update value
+    $(editableObj).css("background", "#FFF url({?=url()?}/assets/img/loader.gif) no-repeat right");
+    $.ajax({
+      url: "{?=url([ADMIN,'vedika','saveprioritas'])?}",
+      cache: false,
+      data: 'column=' + column + '&prioritas=' + editableObj.innerHTML + '&no_rawat=' + no_rawat + '&kd_penyakit=' + kd_penyakit + '&status=' + status,
+      success: function (response) {
+        console.log(response);
+        // set updated value as old value
+        $(editableObj).attr('data-old_value', editableObj.innerHTML);
+        $(editableObj).css("background", "#FDFDFD");
+      }
+    });
   }
 </script>
 

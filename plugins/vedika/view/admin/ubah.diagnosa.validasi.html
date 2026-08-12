@@ -1,0 +1,162 @@
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal">&times;</button>
+  <h4 class="modal-title">Ubah Diagnosis Terverifikasi</h4>
+</div>
+<style>
+  #vedikaDiagnosisEditor .vce-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  #vedikaDiagnosisEditor .vce-toolbar label { margin:0 3px 0 0; }
+  #vedikaDiagnosisEditor .vce-toolbar .form-control { display:inline-block; width:auto; min-width:105px; }
+  #vedikaDiagnosisEditor .vce-code { min-width:58px; }
+  #vedikaDiagnosisEditor .vce-search { position:relative; }
+  #vedikaDiagnosisEditor .vce-results { position:absolute; z-index:1060; left:0; right:0; top:100%; max-height:240px; overflow:auto; }
+  #vedikaDiagnosisEditor .table-responsive { margin-top:14px; border:0; }
+</style>
+<div class="modal-body" id="vedikaDiagnosisEditor">
+  <div class="panel panel-default">
+    <div class="panel-body">
+      <div class="vce-toolbar">
+        <label>Diagnosis (ICD 10)</label>
+        <span id="vdDiagnosisCodeLabel" class="btn btn-default vce-code">kode</span>
+        <select id="vdDiagnosisPriority" class="form-control" title="Posisi diagnosis">
+          <option value="1"{if: !$has_diagnosis} selected{/if}>Utama</option>
+          <option value="2"{if: $has_diagnosis} selected{/if}>Sekunder</option>
+        </select>
+      </div>
+      <div class="vce-search">
+        <div class="input-group">
+          <input id="vdDiagnosisSearch" class="form-control" autocomplete="off" placeholder="Ketik kode atau nama diagnosis">
+          <input id="vdDiagnosisCode" type="hidden">
+          <span class="input-group-btn">
+            <button id="vdDiagnosisSave" class="btn btn-primary" title="Simpan diagnosis" disabled><i class="fa fa-plus"></i></button>
+          </span>
+        </div>
+        <div id="vdDiagnosisResults" class="list-group vce-results"></div>
+      </div>
+      <small class="help-block no-margin">Kode merah tidak dapat dipakai grouping. Kode berlabel hanya sekunder tidak dapat dijadikan diagnosis utama.</small>
+    </div>
+  </div>
+  {if: $only_im_diagnosis}<div class="alert alert-warning" style="padding:8px"><i class="fa fa-exclamation-triangle"></i> Semua diagnosis saat ini adalah kode IM. Tambahkan minimal satu diagnosis non-IM yang sesuai agar dapat diproses oleh INACBG.</div>{/if}
+  <div class="table-responsive">
+    <table class="table table-condensed table-striped">
+      <thead><tr><th>Kode</th><th>Diagnosis</th><th>Aturan</th><th>Prioritas</th><th></th></tr></thead>
+      <tbody>
+        {loop: $diagnosa_pasien}
+        <tr class="{if: !$value.valid_grouping}danger{elseif: !$value.primary_allowed && $value.prioritas == '1'}danger{/if}">
+          <td><strong>{$value.kd_penyakit}</strong></td>
+          <td>{$value.nm_penyakit}</td>
+          <td>{if: !$value.valid_grouping}<span class="label label-danger">Tidak valid grouping</span>{elseif: !$value.primary_allowed}<span class="label label-warning">Hanya sekunder</span>{else}<span class="label label-success">Utama/sekunder</span>{/if} {if: $value.im_only}<span class="label label-info">IM: hanya IDRG</span>{/if}</td>
+          <td>{$value.prioritas} {if: $value.prioritas == '1'}(Utama){else}(Sekunder){/if}</td>
+          <td style="white-space:nowrap">
+            {if: $value.valid_grouping && $value.primary_allowed && $value.prioritas != '1'}<button class="btn btn-xs btn-success vd-set-primary" data-code="{$value.kd_penyakit}" title="Jadikan diagnosis utama"><i class="fa fa-arrow-up"></i> Utama</button>{/if}
+            <button class="btn btn-xs btn-warning vd-substitute" data-code="{$value.kd_penyakit}" data-priority="{$value.prioritas}" title="Substitusi diagnosis"><i class="fa fa-exchange"></i></button>
+            <button class="btn btn-xs btn-danger vd-delete-diagnosis" data-code="{$value.kd_penyakit}" data-priority="{$value.prioritas}" title="Hapus diagnosis"><i class="fa fa-trash"></i></button>
+          </td>
+        </tr>
+        {/loop}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="modal-footer"><button class="btn btn-primary" data-dismiss="modal">Tutup</button></div>
+<script>
+(function(){
+  var root=$('#vedikaDiagnosisEditor'), timer=null, selected=null, substituteCode='', substitutePriority=0;
+  function esc(v){return $('<div>').text(v==null?'':v).html();}
+  function reload(){
+    $.ajax({url:'{$reload_url}',method:'GET',cache:false}).done(function(html){
+      if(/name=["'](?:username|password)["']|id=["']login/i.test(html)){bootbox.alert('Modal gagal dimuat ulang. Silakan tutup lalu buka kembali.');return;}
+      $('#statusModal .modal-content').html(html);
+    }).fail(function(){bootbox.alert('Modal gagal dimuat ulang. Data sudah diproses; silakan tutup lalu buka kembali.');});
+  }
+  root.on('input','#vdDiagnosisSearch',function(){
+    selected=null;
+    $('#vdDiagnosisCode').val('');
+    $('#vdDiagnosisCodeLabel').text(substituteCode?'ganti '+substituteCode:'kode');
+    $('#vdDiagnosisSave').prop('disabled',true);
+    $('#vdDiagnosisPriority option[value="1"]').prop('disabled',false);
+    clearTimeout(timer);
+    var q=this.value;
+    if(q.length<2){$('#vdDiagnosisResults').empty();return;}
+    timer=setTimeout(function(){
+      $.post(mlite.url+'/'+mlite.admin+'/vedika/caridiagnosaklaim?t='+mlite.token,{query:q},function(res){
+        var box=$('#vdDiagnosisResults').empty();
+        $.each(res.items||[],function(_,x){
+          var valid=String(x.validcode)==='1', secondary=String(x.accpdx).toUpperCase()==='N';
+          var allowed=valid && !(substitutePriority===1 && secondary);
+          var label=!valid?'Tidak valid grouping':(!allowed?'Tidak dapat mengganti diagnosis utama':(secondary?'Hanya sekunder':'Utama/sekunder'));
+          $('<button type="button">').addClass('list-group-item '+(!allowed?'list-group-item-danger disabled':''))
+            .prop('disabled',!allowed)
+            .html('<strong>'+esc(x.kode)+'</strong> - '+esc(x.nama)+' <span class="label '+(!allowed?'label-danger':(secondary?'label-warning':'label-success'))+'">'+label+'</span>')
+            .data('item',x).appendTo(box);
+        });
+      },'json');
+    },250);
+  });
+  root.on('click','#vdDiagnosisResults button:not(:disabled)',function(){
+    selected=$(this).data('item');
+    var secondaryOnly=String(selected.accpdx).toUpperCase()==='N';
+    $('#vdDiagnosisPriority option[value="1"]').prop('disabled',secondaryOnly);
+    if(secondaryOnly) $('#vdDiagnosisPriority').val('2');
+    $('#vdDiagnosisCode').val(selected.kode);
+    $('#vdDiagnosisCodeLabel').text(substituteCode?substituteCode+' > '+selected.kode:selected.kode);
+    $('#vdDiagnosisSearch').val(selected.nama);
+    $('#vdDiagnosisResults').empty();
+    $('#vdDiagnosisSave').prop('disabled',false);
+  });
+  root.on('click','#vdDiagnosisSave',function(){
+    var replacing=substituteCode!=='';
+    var endpoint=replacing?'substitusidiagnosaklaim':'simpandiagnosaklaim';
+    var payload=replacing
+      ? {no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode_lama:substituteCode,kode_baru:$('#vdDiagnosisCode').val()}
+      : {no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$('#vdDiagnosisCode').val(),prioritas:$('#vdDiagnosisPriority').val()};
+    $.post(mlite.url+'/'+mlite.admin+'/vedika/'+endpoint+'?t='+mlite.token,payload,function(res){
+      if(!res.ok){bootbox.alert(res.message);return;}
+      reload();
+    },'json');
+  });
+  root.on('click','.vd-substitute',function(){
+    substituteCode=String($(this).data('code'));
+    substitutePriority=parseInt($(this).data('priority'),10)||0;
+    $('#vdDiagnosisPriority').val(substitutePriority===1?'1':'2').prop('disabled',true).attr('title','Prioritas mengikuti diagnosis yang disubstitusi');
+    selected=null;
+    $('#vdDiagnosisCode').val('');
+    $('#vdDiagnosisCodeLabel').text('ganti '+substituteCode);
+    $('#vdDiagnosisSearch').val('').attr('placeholder','Cari diagnosis pengganti untuk '+substituteCode).focus();
+    $('#vdDiagnosisResults').empty();
+    $('#vdDiagnosisSave').prop('disabled',true);
+  });
+  root.on('click','.vd-set-primary',function(){
+    var code=$(this).data('code');
+    $.post(mlite.url+'/'+mlite.admin+'/vedika/jadikandiagnosautama?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:code},function(res){
+      if(!res.ok){bootbox.alert(res.message);return;}
+      reload();
+    },'json');
+  });
+  root.on('click','.vd-delete-diagnosis',function(){
+    var b=$(this);
+    bootbox.confirm('Hapus diagnosis '+b.data('code')+'?',function(ok){
+      if(!ok)return;
+      $.post(mlite.url+'/'+mlite.admin+'/vedika/hapusdiagnosa?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kd_penyakit:b.data('code'),prioritas:b.data('priority')},function(res){
+        if(!res.ok){bootbox.alert(res.message);return;}
+        reload();
+      },'json');
+    });
+  });
+})();
+</script>
+<script>
+(function(){
+  var noRawatRingkasan='{?=convertNoRawat($no_rawat)?}', statusRingkasan='{$status_lanjut}', refreshDimulai=false;
+  $('#statusModal').off('hidden.bs.modal.vedikaRingkasan').on('hidden.bs.modal.vedikaRingkasan',function(){
+    if(refreshDimulai)return;
+    refreshDimulai=true;
+    $.ajax({url:mlite.url+'/'+mlite.admin+'/vedika/ringkasanmedis/'+encodeURIComponent(statusRingkasan)+'/'+encodeURIComponent(noRawatRingkasan.replace(/\//g,''))+'?t='+encodeURIComponent(mlite.token),method:'GET',dataType:'json',cache:false}).done(function(response){
+      $('.js-ubah-medis').filter(function(){return $(this).attr('data-no-rawat')===noRawatRingkasan;}).each(function(){
+        var target=$(this).attr('data-summary-target'),items=target.indexOf('#diagnosa-')===0?response.diagnosa:response.prosedur,box=$(target).empty();
+        if(!items||!items.length){box.text('-');return;}
+        $.each(items,function(_,item){box.append(document.createTextNode('- ('+item.kode+')-'+item.nama),$('<br>'));});
+      });
+    });
+  });
+})();
+</script>

@@ -16,6 +16,11 @@ class Admin extends AdminModule
   protected $api_url;
   protected $assign;
 
+  // Mode internal dipakai worker CLI agar method yang biasanya mengirim HTTP
+  // dapat digunakan ulang tanpa echo/exit dan tanpa membuka browser.
+  private $captureInacbgsHtml = false;
+  private $captureJsonResponse = false;
+
   public function init()
   {
     $this->consid = $this->settings->get('settings.BpjsConsID');
@@ -222,6 +227,14 @@ class Admin extends AdminModule
           'catatan' => $_POST['status'].' - '.$_POST['catatan'],
           'username' => $this->core->getUserInfo('username', null, true)
         ]);
+
+        $this->_queueGroupingAfterStatusSaved(
+          $_POST['no_rawat'],
+          $_POST['nosep'],
+          $jenis_klaim,
+          $_POST['status']
+        );
+
       }
     }
 
@@ -393,7 +406,6 @@ class Admin extends AdminModule
           ->where('diagnosa_pasien.status', $row['status_lanjut'])
           ->asc('prioritas')
           ->toArray();
-
         $prosedur_pasienx = $this->db('prosedur_pasien')
           ->join('icd9', 'icd9.kode = prosedur_pasien.kode')
           ->where('no_rawat', $row['no_rawat'])
@@ -402,15 +414,18 @@ class Admin extends AdminModule
           ->toArray();       
 
         $no_peserta = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
+        $onlyIMDiagnosis = $this->_diagnosisRowsOnlyIM($diagnosa_pasienx);
 
         $row = htmlspecialchars_array($row);    
         $row['formVclaimURL'] = url([ADMIN, 'vedika', 'formsep', '?no_asuransi=' . $no_peserta .'&no_rawat='.$row['no_rawat']]);         
         $row['diagnosa_pasienx'] = $diagnosa_pasienx;
+        $row['only_im_diagnosis'] = $onlyIMDiagnosis;
         $row['prosedur_pasienx'] = $prosedur_pasienx;
         $row['nomor'] = $nomor++;
         $row['png_jawab'] = $this->core->getPenjabInfo('png_jawab', $this->core->getRegPeriksaInfo('kd_pj', $row['no_rawat']));
         $row['no_sitb'] = $this->_getSITB('no_sitb', $row['no_rkm_medis']);
         $row['no_sep'] = $this->_getSEPInfo('no_sep', $row['no_rawat']);
+        $row['grouping_error'] = $this->_getLatestGroupingFailure($row['no_rawat'], $row['no_sep']);
         $row['no_peserta'] = $this->_getSEPInfo('no_kartu', $row['no_rawat']);
         $row['no_rujukan'] = $this->_getSEPInfo('no_rujukan', $row['no_rawat']);
         $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
@@ -679,7 +694,6 @@ class Admin extends AdminModule
           ->where('diagnosa_pasien.status', $row['status_lanjut'])
           ->asc('prioritas')
           ->toArray();
-
         $prosedur_pasienx = $this->db('prosedur_pasien')
           ->join('icd9', 'icd9.kode = prosedur_pasien.kode')
           ->where('no_rawat', $row['no_rawat'])
@@ -773,6 +787,13 @@ class Admin extends AdminModule
           'catatan' => $_POST['status'].' - '.$_POST['catatan'],
           'username' => $this->core->getUserInfo('username', null, true)
         ]);
+
+        $this->_queueGroupingAfterStatusSaved(
+          $_POST['no_rawat'],
+          $_POST['nosep'],
+          $jenis_klaim,
+          $_POST['status']
+        );
       }
     }
 
@@ -908,14 +929,17 @@ class Admin extends AdminModule
           ->toArray();       
 
         $no_peserta = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
+        $onlyIMDiagnosis = $this->_diagnosisRowsOnlyIM($diagnosa_pasienx);
 
         $row = htmlspecialchars_array($row);    
         $row['formVclaimURL'] = url([ADMIN, 'vedika', 'formsep', '?no_asuransi=' . $no_peserta .'&no_rawat='.$row['no_rawat']]);    
         $row['diagnosa_pasienx'] = $diagnosa_pasienx;
+        $row['only_im_diagnosis'] = $onlyIMDiagnosis;
         $row['prosedur_pasienx'] = $prosedur_pasienx;
         $row['nomor'] = $nomor++;
         $row['no_sitb'] = $this->_getSITB('no_sitb', $row['no_rkm_medis']);
         $row['no_sep'] = $this->_getSEPInfo('no_sep', $row['no_rawat']);
+        $row['grouping_error'] = $this->_getLatestGroupingFailure($row['no_rawat'], $row['no_sep']);
         $row['no_peserta'] = $this->_getSEPInfo('no_kartu', $row['no_rawat']);
         $row['nik_bpjs'] = $no_peserta;
         $row['no_rujukan'] = $this->_getSEPInfo('no_rujukan', $row['no_rawat']);
@@ -7904,9 +7928,110 @@ class Admin extends AdminModule
 
   public function getUbahDiagnosa($status_lanjut, $no_rawat)
   {
-    $diagnosa_pasien = $this->db('diagnosa_pasien')->join('penyakit', 'penyakit.kd_penyakit = diagnosa_pasien.kd_penyakit')->where('diagnosa_pasien.no_rawat', revertNoRawat($no_rawat))->where('diagnosa_pasien.status', $status_lanjut)->asc('prioritas')->toArray();
-    echo $this->draw('ubah.diagnosa.html', ['no_rawat' => revertNoRawat($no_rawat), 'diagnosa_pasien' => $diagnosa_pasien, 'status_lanjut' => $status_lanjut]);
+    $rawNoRawat = revertNoRawat($no_rawat);
+    if (in_array($status_lanjut, ['Ralan', 'Ranap'], true)) {
+      $this->_normalizeDiagnosisPriorities($rawNoRawat, $status_lanjut);
+    }
+    $diagnosa_pasien = $this->db('diagnosa_pasien')->join('penyakit', 'penyakit.kd_penyakit = diagnosa_pasien.kd_penyakit')->where('diagnosa_pasien.no_rawat', $rawNoRawat)->where('diagnosa_pasien.status', $status_lanjut)->asc('prioritas')->toArray();
+    foreach ($diagnosa_pasien as &$diagnosa) {
+      $diagnosa['valid_grouping'] = isset($diagnosa['validcode']) && (string) $diagnosa['validcode'] === '1';
+      $diagnosa['primary_allowed'] = !isset($diagnosa['accpdx']) || strtoupper((string) $diagnosa['accpdx']) !== 'N';
+      $diagnosa['im_only'] = isset($diagnosa['im']) && (string) $diagnosa['im'] === '1';
+    }
+    unset($diagnosa);
+    echo $this->draw('ubah.diagnosa.validasi.html', [
+      'no_rawat' => revertNoRawat($no_rawat),
+      'diagnosa_pasien' => $diagnosa_pasien,
+      'has_diagnosis' => count($diagnosa_pasien) > 0,
+      'only_im_diagnosis' => $this->_diagnosisRowsOnlyIM($diagnosa_pasien),
+      'status_lanjut' => $status_lanjut,
+      'reload_url' => url([ADMIN, 'vedika', 'ubahdiagnosa', $status_lanjut, $no_rawat])
+    ]);
     exit();
+  }
+
+  public function postCariDiagnosaKlaim()
+  {
+    $query = isset($_POST['query']) ? trim((string) $_POST['query']) : '';
+    if (strlen($query) < 2) {
+      return $this->jsonResponse(['ok' => true, 'items' => []]);
+    }
+    $like = '%' . $query . '%';
+    $stmt = $this->db()->pdo()->prepare(
+      "SELECT kd_penyakit AS kode, nm_penyakit AS nama, validcode, accpdx,
+              code_asterisk, asterisk, im
+       FROM penyakit
+       WHERE kd_penyakit LIKE ? OR nm_penyakit LIKE ?
+       ORDER BY CASE WHEN kd_penyakit = ? THEN 0 ELSE 1 END, kd_penyakit ASC
+       LIMIT 25"
+    );
+    $stmt->execute([$like, $like, $query]);
+    return $this->jsonResponse(['ok' => true, 'items' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+  }
+
+  public function postSimpanDiagnosaKlaim()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $kode = isset($_POST['kode']) ? trim((string) $_POST['kode']) : '';
+    $prioritas = isset($_POST['prioritas']) ? (int) $_POST['prioritas'] : 0;
+    if ($noRawat === '' || !in_array($status, ['Ralan', 'Ranap'], true) || $kode === '' || !in_array($prioritas, [1, 2], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data diagnosa tidak lengkap atau prioritas tidak valid']);
+    }
+    if (!$this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Nomor rawat tidak ditemukan']);
+    }
+
+    $master = $this->db('penyakit')->where('kd_penyakit', $kode)->oneArray();
+    if (!$master || !isset($master['validcode']) || (string) $master['validcode'] !== '1') {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Kode ICD-10 tidak valid untuk grouping']);
+    }
+    if ($this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kode)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis tersebut sudah ada pada episode ini']);
+    }
+
+    $existing = $this->db('diagnosa_pasien')->join('penyakit', 'penyakit.kd_penyakit = diagnosa_pasien.kd_penyakit')->where('diagnosa_pasien.no_rawat', $noRawat)->where('diagnosa_pasien.status', $status)->asc('diagnosa_pasien.prioritas')->toArray();
+    if (count($existing) >= 9) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Maksimal 9 diagnosis dalam satu layanan']);
+    }
+    $primaryAllowed = !isset($master['accpdx']) || strtoupper((string) $master['accpdx']) !== 'N';
+    $hasPrimary = false;
+    foreach ($existing as $existingDiagnosis) {
+      if ((int) $existingDiagnosis['prioritas'] === 1
+          && isset($existingDiagnosis['validcode']) && (string) $existingDiagnosis['validcode'] === '1'
+          && (!isset($existingDiagnosis['accpdx']) || strtoupper((string) $existingDiagnosis['accpdx']) !== 'N')) {
+        $hasPrimary = true;
+        break;
+      }
+    }
+    if (!$existing) {
+      if (!$primaryAllowed) {
+        return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis ini hanya boleh menjadi sekunder. Tambahkan diagnosis utama terlebih dahulu']);
+      }
+      $prioritas = 1;
+    } elseif (!$primaryAllowed && ($prioritas === 1 || !$hasPrimary)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis ini hanya boleh menjadi sekunder dan membutuhkan diagnosis utama berprioritas 1']);
+    }
+    if ($prioritas !== 1) {
+      $prioritas = count($existing) + 1;
+    }
+
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      if ($prioritas === 1 && $existing) {
+        $shift = $pdo->prepare('UPDATE diagnosa_pasien SET prioritas = prioritas + 1 WHERE no_rawat = ? AND status = ?');
+        $shift->execute([$noRawat, $status]);
+      }
+      $save = $pdo->prepare('INSERT INTO diagnosa_pasien (no_rawat, kd_penyakit, status, prioritas, status_penyakit) VALUES (?, ?, ?, ?, ?)');
+      $save->execute([$noRawat, $kode, $status, $prioritas, 'Baru']);
+      $this->_normalizeDiagnosisPriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis gagal disimpan: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Diagnosis berhasil disimpan']);
   }
 
   public function getDisplayDiagnosa($status_lanjut, $no_rawat)
@@ -7920,16 +8045,259 @@ class Admin extends AdminModule
 
   public function postHapusDiagnosa()
   {
-    $query = $this->db('diagnosa_pasien')->where('no_rawat', $_POST['no_rawat'])->where('kd_penyakit', $_POST['kd_penyakit'])->where('prioritas', $_POST['prioritas'])->delete();
-    //echo 'Hapus';
-    exit();
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $kode = isset($_POST['kd_penyakit']) ? trim((string) $_POST['kd_penyakit']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    if ($noRawat === '' || $kode === '' || !in_array($status, ['Ralan', 'Ranap'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data diagnosis tidak lengkap']);
+    }
+    $target = $this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kode)->oneArray();
+    if (!$target) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis tidak ditemukan']);
+    }
+    if ((int) $target['prioritas'] === 1) {
+      $stmt = $this->db()->pdo()->prepare(
+        "SELECT COUNT(*) AS total,
+                SUM(CASE WHEN COALESCE(p.accpdx, 'Y') <> 'N' AND p.validcode = '1' THEN 1 ELSE 0 END) AS primary_allowed
+         FROM diagnosa_pasien d LEFT JOIN penyakit p ON p.kd_penyakit = d.kd_penyakit
+         WHERE d.no_rawat = ? AND d.status = ? AND d.kd_penyakit <> ?"
+      );
+      $stmt->execute([$noRawat, $status, $kode]);
+      $remaining = $stmt->fetch(\PDO::FETCH_ASSOC);
+      if ((int) $remaining['total'] > 0 && (int) $remaining['primary_allowed'] === 0) {
+        return $this->jsonResponse(['ok' => false, 'message' => 'Tambahkan diagnosis utama pengganti sebelum menghapus diagnosis utama ini']);
+      }
+    }
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      $delete = $pdo->prepare('DELETE FROM diagnosa_pasien WHERE no_rawat = ? AND status = ? AND kd_penyakit = ?');
+      $delete->execute([$noRawat, $status, $kode]);
+      $this->_normalizeDiagnosisPriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis gagal dihapus: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Diagnosis berhasil dihapus']);
+  }
+
+  public function postJadikanDiagnosaUtama()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $kode = isset($_POST['kode']) ? trim((string) $_POST['kode']) : '';
+    if ($noRawat === '' || $kode === '' || !in_array($status, ['Ralan', 'Ranap'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data diagnosis tidak lengkap']);
+    }
+    $master = $this->db('penyakit')->where('kd_penyakit', $kode)->oneArray();
+    if (!$master || (string) $master['validcode'] !== '1' || (isset($master['accpdx']) && strtoupper((string) $master['accpdx']) === 'N')) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis ini tidak dapat dijadikan diagnosis utama']);
+    }
+    if (!$this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kode)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis tidak ditemukan']);
+    }
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      $move = $pdo->prepare('UPDATE diagnosa_pasien SET prioritas = 0 WHERE no_rawat = ? AND status = ? AND kd_penyakit = ?');
+      $move->execute([$noRawat, $status, $kode]);
+      $this->_normalizeDiagnosisPriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis utama gagal diubah: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Diagnosis utama berhasil diubah']);
+  }
+
+  public function postSubstitusiDiagnosaKlaim()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $kodeLama = isset($_POST['kode_lama']) ? trim((string) $_POST['kode_lama']) : '';
+    $kodeBaru = isset($_POST['kode_baru']) ? trim((string) $_POST['kode_baru']) : '';
+    if ($noRawat === '' || $kodeLama === '' || $kodeBaru === '' || !in_array($status, ['Ralan', 'Ranap'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data substitusi diagnosis tidak lengkap']);
+    }
+    $target = $this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kodeLama)->oneArray();
+    $master = $this->db('penyakit')->where('kd_penyakit', $kodeBaru)->oneArray();
+    if (!$target) return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis yang akan diganti tidak ditemukan']);
+    if (!$master || (string) $master['validcode'] !== '1') return $this->jsonResponse(['ok' => false, 'message' => 'Kode diagnosis pengganti tidak valid untuk grouping']);
+    if ((int) $target['prioritas'] === 1 && isset($master['accpdx']) && strtoupper((string) $master['accpdx']) === 'N') {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Kode pengganti hanya boleh menjadi diagnosis sekunder']);
+    }
+    if ($kodeLama !== $kodeBaru && $this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kodeBaru)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis pengganti sudah ada pada episode ini']);
+    }
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      $replace = $pdo->prepare('UPDATE diagnosa_pasien SET kd_penyakit = ? WHERE no_rawat = ? AND status = ? AND kd_penyakit = ?');
+      $replace->execute([$kodeBaru, $noRawat, $status, $kodeLama]);
+      $this->_normalizeDiagnosisPriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis gagal disubstitusi: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Diagnosis berhasil disubstitusi']);
+  }
+
+  private function _normalizeDiagnosisPriorities($noRawat, $status, $pdo = null)
+  {
+    $pdo = $pdo ?: $this->db()->pdo();
+    $stmt = $pdo->prepare(
+      "SELECT d.kd_penyakit, d.prioritas, p.validcode, p.accpdx
+       FROM diagnosa_pasien d LEFT JOIN penyakit p ON p.kd_penyakit = d.kd_penyakit
+       WHERE d.no_rawat = ? AND d.status = ? ORDER BY d.prioritas ASC, d.kd_penyakit ASC"
+    );
+    $stmt->execute([$noRawat, $status]);
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    if (!$rows) return;
+
+    foreach ($rows as $index => $row) {
+      $allowed = (string) $row['validcode'] === '1' && strtoupper((string) $row['accpdx']) !== 'N';
+      if ($allowed) {
+        if ($index > 0) {
+          unset($rows[$index]);
+          array_unshift($rows, $row);
+          $rows = array_values($rows);
+        }
+        break;
+      }
+    }
+    $update = $pdo->prepare('UPDATE diagnosa_pasien SET prioritas = ? WHERE no_rawat = ? AND status = ? AND kd_penyakit = ?');
+    foreach ($rows as $index => $row) {
+      $update->execute([$index + 1, $noRawat, $status, $row['kd_penyakit']]);
+    }
   }
 
   public function getUbahProsedur($status_lanjut, $no_rawat)
   {
-    $prosedur_pasien = $this->db('prosedur_pasien')->join('icd9', 'icd9.kode = prosedur_pasien.kode')->where('prosedur_pasien.no_rawat', revertNoRawat($no_rawat))->where('prosedur_pasien.status', $status_lanjut)->asc('prioritas')->toArray();
-    echo $this->draw('ubah.prosedur.html', ['no_rawat' => revertNoRawat($no_rawat), 'prosedur_pasien' => $prosedur_pasien, 'status_lanjut' => $status_lanjut]);
+    $rawNoRawat = revertNoRawat($no_rawat);
+    if (in_array($status_lanjut, ['Ralan', 'Ranap'], true)) {
+      $this->_normalizeProcedurePriorities($rawNoRawat, $status_lanjut);
+    }
+    $prosedur_pasien = $this->db('prosedur_pasien')->join('icd9', 'icd9.kode = prosedur_pasien.kode')->where('prosedur_pasien.no_rawat', $rawNoRawat)->where('prosedur_pasien.status', $status_lanjut)->asc('prioritas')->toArray();
+    foreach ($prosedur_pasien as &$prosedur) {
+      $prosedur['valid_grouping'] = isset($prosedur['validcode']) && (string) $prosedur['validcode'] === '1';
+      $prosedur['volume'] = $this->_getProcedureVolume($prosedur['no_rawat'], $prosedur['kode'], $status_lanjut);
+    }
+    unset($prosedur);
+    echo $this->draw('ubah.prosedur.validasi.html', [
+      'no_rawat' => revertNoRawat($no_rawat),
+      'prosedur_pasien' => $prosedur_pasien,
+      'has_procedure' => count($prosedur_pasien) > 0,
+      'status_lanjut' => $status_lanjut,
+      'reload_url' => url([ADMIN, 'vedika', 'ubahprosedur', $status_lanjut, $no_rawat]),
+      'volumes' => range(1, 9)
+    ]);
     exit();
+  }
+
+  public function postCariProsedurKlaim()
+  {
+    $query = isset($_POST['query']) ? trim((string) $_POST['query']) : '';
+    if (strlen($query) < 2) return $this->jsonResponse(['ok' => true, 'items' => []]);
+    $like = '%' . $query . '%';
+    $stmt = $this->db()->pdo()->prepare(
+      "SELECT kode, deskripsi_panjang AS nama, validcode, im
+       FROM icd9 WHERE kode LIKE ? OR deskripsi_panjang LIKE ?
+       ORDER BY CASE WHEN kode = ? THEN 0 ELSE 1 END, kode ASC LIMIT 25"
+    );
+    $stmt->execute([$like, $like, $query]);
+    return $this->jsonResponse(['ok' => true, 'items' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+  }
+
+  public function postSimpanProsedurKlaim()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $kode = isset($_POST['kode']) ? trim((string) $_POST['kode']) : '';
+    $prioritas = isset($_POST['prioritas']) ? (int) $_POST['prioritas'] : 0;
+    $volume = isset($_POST['volume']) ? (int) $_POST['volume'] : 1;
+    if ($noRawat === '' || !in_array($status, ['Ralan', 'Ranap'], true) || $kode === '' || !in_array($prioritas, [1, 2], true) || $volume < 1 || $volume > 9) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data prosedur, prioritas, atau volume tidak valid']);
+    }
+    if (!$this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Nomor rawat tidak ditemukan']);
+    }
+    $master = $this->db('icd9')->where('kode', $kode)->oneArray();
+    if (!$master || !isset($master['validcode']) || (string) $master['validcode'] !== '1') {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Kode ICD-9 tidak valid untuk grouping']);
+    }
+    if ($this->db('prosedur_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kode', $kode)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur tersebut sudah ada pada episode ini']);
+    }
+    $existing = $this->db('prosedur_pasien')->where('no_rawat', $noRawat)->where('status', $status)->asc('prioritas')->toArray();
+    if (count($existing) >= 9) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Maksimal 9 prosedur dalam satu layanan']);
+    }
+    if (!$existing) {
+      $prioritas = 1;
+    } elseif ($prioritas !== 1) {
+      $prioritas = count($existing) + 1;
+    }
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      if ($prioritas === 1 && $existing) {
+        $shift = $pdo->prepare('UPDATE prosedur_pasien SET prioritas = prioritas + 1 WHERE no_rawat = ? AND status = ?');
+        $shift->execute([$noRawat, $status]);
+      }
+      $save = $pdo->prepare('INSERT INTO prosedur_pasien (no_rawat, kode, status, prioritas) VALUES (?, ?, ?, ?)');
+      $save->execute([$noRawat, $kode, $status, $prioritas]);
+      $this->_saveProcedureVolume($noRawat, $kode, $status, $volume);
+      $this->_normalizeProcedurePriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur gagal disimpan: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Prosedur berhasil disimpan']);
+  }
+
+  public function postSimpanVolumeProsedur()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $kode = isset($_POST['kode']) ? trim((string) $_POST['kode']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $volume = isset($_POST['volume']) ? (int) $_POST['volume'] : 0;
+    if ($noRawat === '' || $kode === '' || !in_array($status, ['Ralan', 'Ranap'], true) || $volume < 1 || $volume > 9) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data prosedur atau volume tidak valid']);
+    }
+    if (!$this->db('prosedur_pasien')->where('no_rawat', $noRawat)->where('kode', $kode)->where('status', $status)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur tidak ditemukan pada episode ini']);
+    }
+    $master = $this->db('icd9')->where('kode', $kode)->oneArray();
+    if (!$master || !isset($master['validcode']) || (string) $master['validcode'] !== '1') {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Volume tidak dapat disimpan karena kode tidak valid untuk grouping']);
+    }
+    $this->_saveProcedureVolume($noRawat, $kode, $status, $volume);
+    return $this->jsonResponse(['ok' => true, 'message' => 'Volume prosedur diperbarui']);
+  }
+
+  private function _getProcedureVolume($noRawat, $kode, $status)
+  {
+    $row = $this->db('mlite_vedika_procedure_volume')->where('no_rawat', $noRawat)->where('kode', $kode)->where('status', $status)->oneArray();
+    return $row && isset($row['volume']) ? max(1, min(9, (int) $row['volume'])) : 1;
+  }
+
+  private function _saveProcedureVolume($noRawat, $kode, $status, $volume)
+  {
+    $pdo = $this->db()->pdo();
+    $stmt = $pdo->prepare(
+      'INSERT INTO mlite_vedika_procedure_volume (no_rawat, kode, status, volume, updated_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE volume = VALUES(volume), updated_by = VALUES(updated_by), updated_at = NOW()'
+    );
+    $stmt->execute([$noRawat, $kode, $status, $volume, (string) $this->core->getUserInfo('username', null, true)]);
+  }
+
+  private function _procedureCodeWithVolume($noRawat, $kode, $status)
+  {
+    $volume = $this->_getProcedureVolume($noRawat, $kode, $status);
+    return $volume > 1 ? $kode . '+' . $volume : $kode;
   }
 
   public function getDisplayProsedur($status_lanjut, $no_rawat)
@@ -7941,9 +8309,103 @@ class Admin extends AdminModule
 
   public function postHapusProsedur()
   {
-    $query = $this->db('prosedur_pasien')->where('no_rawat', $_POST['no_rawat'])->where('kode', $_POST['kode'])->where('prioritas', $_POST['prioritas'])->delete();
-    //echo 'Hapus';
-    exit();
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $kode = isset($_POST['kode']) ? trim((string) $_POST['kode']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    if ($noRawat === '' || $kode === '' || !in_array($status, ['Ralan', 'Ranap'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data prosedur tidak lengkap']);
+    }
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      $delete = $pdo->prepare('DELETE FROM prosedur_pasien WHERE no_rawat = ? AND status = ? AND kode = ?');
+      $delete->execute([$noRawat, $status, $kode]);
+      $deleteVolume = $pdo->prepare('DELETE FROM mlite_vedika_procedure_volume WHERE no_rawat = ? AND status = ? AND kode = ?');
+      $deleteVolume->execute([$noRawat, $status, $kode]);
+      $this->_normalizeProcedurePriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur gagal dihapus: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Prosedur berhasil dihapus']);
+  }
+
+  public function postJadikanProsedurUtama()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $kode = isset($_POST['kode']) ? trim((string) $_POST['kode']) : '';
+    if ($noRawat === '' || $kode === '' || !in_array($status, ['Ralan', 'Ranap'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data prosedur tidak lengkap']);
+    }
+    $master = $this->db('icd9')->where('kode', $kode)->oneArray();
+    if (!$master || (string) $master['validcode'] !== '1') {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur ini tidak valid untuk dijadikan prosedur utama']);
+    }
+    if (!$this->db('prosedur_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kode', $kode)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur tidak ditemukan']);
+    }
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      $move = $pdo->prepare('UPDATE prosedur_pasien SET prioritas = 0 WHERE no_rawat = ? AND status = ? AND kode = ?');
+      $move->execute([$noRawat, $status, $kode]);
+      $this->_normalizeProcedurePriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur utama gagal diubah: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Prosedur utama berhasil diubah']);
+  }
+
+  public function postSubstitusiProsedurKlaim()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $status = isset($_POST['status']) ? trim((string) $_POST['status']) : '';
+    $kodeLama = isset($_POST['kode_lama']) ? trim((string) $_POST['kode_lama']) : '';
+    $kodeBaru = isset($_POST['kode_baru']) ? trim((string) $_POST['kode_baru']) : '';
+    if ($noRawat === '' || $kodeLama === '' || $kodeBaru === '' || !in_array($status, ['Ralan', 'Ranap'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Data substitusi prosedur tidak lengkap']);
+    }
+    $target = $this->db('prosedur_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kode', $kodeLama)->oneArray();
+    $master = $this->db('icd9')->where('kode', $kodeBaru)->oneArray();
+    if (!$target) return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur yang akan diganti tidak ditemukan']);
+    if (!$master || (string) $master['validcode'] !== '1') return $this->jsonResponse(['ok' => false, 'message' => 'Kode prosedur pengganti tidak valid untuk grouping']);
+    if ($kodeLama !== $kodeBaru && $this->db('prosedur_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kode', $kodeBaru)->oneArray()) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur pengganti sudah ada pada episode ini']);
+    }
+    $volume = $this->_getProcedureVolume($noRawat, $kodeLama, $status);
+    $pdo = $this->db()->pdo();
+    $pdo->beginTransaction();
+    try {
+      $replace = $pdo->prepare('UPDATE prosedur_pasien SET kode = ? WHERE no_rawat = ? AND status = ? AND kode = ?');
+      $replace->execute([$kodeBaru, $noRawat, $status, $kodeLama]);
+      if ($kodeLama !== $kodeBaru) {
+        $deleteVolume = $pdo->prepare('DELETE FROM mlite_vedika_procedure_volume WHERE no_rawat = ? AND status = ? AND kode = ?');
+        $deleteVolume->execute([$noRawat, $status, $kodeLama]);
+        $this->_saveProcedureVolume($noRawat, $kodeBaru, $status, $volume);
+      }
+      $this->_normalizeProcedurePriorities($noRawat, $status, $pdo);
+      $pdo->commit();
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->jsonResponse(['ok' => false, 'message' => 'Prosedur gagal disubstitusi: ' . $e->getMessage()]);
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'Prosedur berhasil disubstitusi']);
+  }
+
+  private function _normalizeProcedurePriorities($noRawat, $status, $pdo = null)
+  {
+    $pdo = $pdo ?: $this->db()->pdo();
+    $stmt = $pdo->prepare('SELECT kode FROM prosedur_pasien WHERE no_rawat = ? AND status = ? ORDER BY prioritas ASC, kode ASC');
+    $stmt->execute([$noRawat, $status]);
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $update = $pdo->prepare('UPDATE prosedur_pasien SET prioritas = ? WHERE no_rawat = ? AND status = ? AND kode = ?');
+    foreach ($rows as $index => $row) {
+      $update->execute([$index + 1, $noRawat, $status, $row['kode']]);
+    }
   }
 
   public function getBridgingInacbgs($no_rawat)
@@ -8028,10 +8490,11 @@ class Admin extends AdminModule
     $prosedur= '';
     $a_prosedur=1;
     foreach ($row_prosedur as $row) {
+      $kodeKlaim = $this->_procedureCodeWithVolume(revertNoRawat($no_rawat), $row['kode'], 'Ranap');
       if($a_prosedur==1){
-          $prosedur=$row["kode"];
+          $prosedur=$kodeKlaim;
       }else{
-          $prosedur=$prosedur."#".$row["kode"];
+          $prosedur=$prosedur."#".$kodeKlaim;
       }
       $a_prosedur++;
     }
@@ -8044,10 +8507,11 @@ class Admin extends AdminModule
     $prosedur= '';
     $a_prosedur=1;
     foreach ($row_prosedur as $row) {
+      $kodeKlaim = $this->_procedureCodeWithVolume(revertNoRawat($no_rawat), $row['kode'], 'Ralan');
       if($a_prosedur==1){
-          $prosedur=$row["kode"];
+          $prosedur=$kodeKlaim;
       }else{
-          $prosedur=$prosedur."#".$row["kode"];
+          $prosedur=$prosedur."#".$kodeKlaim;
       }
       $a_prosedur++;
     }
@@ -8692,7 +9156,7 @@ class Admin extends AdminModule
     }
     //echo json_encode($adl, true);
 
-    echo $this->draw('inacbgs.html', [
+    $html = $this->draw('inacbgs.html', [
       'sitb' => $sitb,
       'jk' => $jk,
       'reg_periksa' => $reg_periksa,
@@ -8721,6 +9185,12 @@ class Admin extends AdminModule
       'prosedur' => $prosedur,
       'adl' => $adl
     ]);
+
+    if ($this->captureInacbgsHtml) {
+      return $html;
+    }
+
+    echo $html;
     exit();
   }
 
@@ -8762,6 +9232,7 @@ class Admin extends AdminModule
 
     $row_diagnosa = $this->db('diagnosa_pasien')
       ->where('no_rawat', revertNoRawat($no_rawat))
+      ->where('status', $reg_periksa['status_lanjut'])
       ->asc('prioritas')
       ->toArray();
     $a_diagnosa=1;
@@ -8777,15 +9248,21 @@ class Admin extends AdminModule
 
     $row_prosedur = $this->db('prosedur_pasien')
       ->where('no_rawat', revertNoRawat($no_rawat))
+      ->where('status', $reg_periksa['status_lanjut'])
       ->asc('prioritas')
       ->toArray();
     $prosedur= '';
     $a_prosedur=1;
     foreach ($row_prosedur as $row) {
+      $kodeKlaim = $this->_procedureCodeWithVolume(
+        revertNoRawat($no_rawat),
+        $row['kode'],
+        isset($row['status']) ? $row['status'] : $reg_periksa['status_lanjut']
+      );
       if($a_prosedur==1){
-          $prosedur=$row["kode"];
+          $prosedur=$kodeKlaim;
       }else{
-          $prosedur=$prosedur."#".$row["kode"];
+          $prosedur=$prosedur."#".$kodeKlaim;
       }
       $a_prosedur++;
     }
@@ -9541,7 +10018,7 @@ class Admin extends AdminModule
         $this->SetKlaimRanap($nosep,$nokartu,$tgl_registrasi,$keluar,$cara_masuk,$jnsrawat,$kelas_rawat,$adl_sub_acute,
           $adl_chronic,$icu_indikator,$icu_los,$ventilator_hour,$use_ind,$start_dttm,$stop_dttm,$upgrade_class_ind,$upgrade_class_class,
           $upgrade_class_los,$upgrade_class_payor,$add_payment_pct,$birth_weight,$discharge_status,$diagnosa,$procedure,
-          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->core->getPegawaiInfo('no_ktp', $this->core->getUserInfo('username', null, true)),
+          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->_resolveCoderNik(),
           $prosedur_non_bedah,$prosedur_bedah,$konsultasi,$tenaga_ahli,$keperawatan,$penunjang,
           $radiologi,$laboratorium,$pelayanan_darah,$rehabilitasi,$kamar,$rawat_intensif,$obat,
           $obat_kronis,$obat_kemoterapi,$alkes,$bmhp,$sewa_alat,
@@ -9554,7 +10031,7 @@ class Admin extends AdminModule
       $this->SetKlaimRalan($nosep,$nokartu,$tgl_registrasi,$keluar,$cara_masuk,$jnsrawat,$kelas_rawat,$adl_sub_acute,
           $adl_chronic,$icu_indikator,$icu_los,$ventilator_hour,$use_ind,$start_dttm,$stop_dttm,$upgrade_class_ind,$upgrade_class_class,
           $upgrade_class_los,$upgrade_class_payor,$add_payment_pct,$birth_weight,$discharge_status,$diagnosa,$procedure,
-          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->core->getPegawaiInfo('no_ktp', $this->core->getUserInfo('username', null, true)),
+          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->_resolveCoderNik(),
           $prosedur_non_bedah,$prosedur_bedah,$konsultasi,$tenaga_ahli,$keperawatan,$penunjang,
           $radiologi,$laboratorium,$pelayanan_darah,$rehabilitasi,$kamar,$rawat_intensif,$obat,
           $obat_kronis,$obat_kemoterapi,$alkes,$bmhp,$sewa_alat,
@@ -9700,7 +10177,9 @@ class Admin extends AdminModule
         'ok' => false,
         'last_step' => null,
         'steps' => [
+            'validasi_diagnosa_inacbg' => null,
             'buat_klaim' => null,
+            'edit_klaim' => null,
             'set_klaim' => null,
             'grouper_idrg' => null,
             'final_idrg' => null,
@@ -9710,10 +10189,32 @@ class Admin extends AdminModule
             'kirim_datacenter' => null,
         ]
     ];
+
+    // INACBG wajib memiliki minimal satu diagnosis non-IM. Kode IM tetap
+    // dipertahankan untuk IDRG, tetapi sengaja tidak dikirim ke INACBG.
+    if (trim((string) $diagnosaIDRG) === '') {
+        return $this->stop($result, 'validasi_diagnosa_inacbg', [
+            'ok' => false,
+            'message' => 'Diagnosis ICD-10 belum diisi. Tambahkan minimal satu diagnosis yang sesuai sebelum mengirim klaim.'
+        ]);
+    }
+    if (trim((string) $diagnosaINACBG) === '') {
+        $imCodes = isset($diagSplit['im_codes']) ? $diagSplit['im_codes'] : $diagnosaIDRG;
+        return $this->stop($result, 'validasi_diagnosa_inacbg', [
+            'ok' => false,
+            'message' => $this->_onlyIMDiagnosisMessage($imCodes)
+        ]);
+    }
+    $result['steps']['validasi_diagnosa_inacbg'] = true;
     
+    $isReedit = false;
+
     // STEP 1
     if($data_claim['metadata']['message']=="Ok"){
-        $this->EditUlangKlaim($nosep);
+        $r = $this->EditUlangKlaim($nosep);
+        if (!$r['ok']) return $this->stop($result, 'edit_klaim', $r);
+        $result['steps']['edit_klaim'] = true;
+        $isReedit = true;
     } else {
         $r = $this->BuatKlaimBaru($nokartu,$nosep,$no_rkm_medis,$nm_pasien,$tgl_lahir." 00:00:00", $gender,$norawat);
         if (!$r['ok']) return $this->stop($result, 'buat_klaim', $r);
@@ -9730,7 +10231,7 @@ class Admin extends AdminModule
     $r =  $this->SetKlaimRanap($nosep,$nokartu,$tgl_registrasi,$keluar,$cara_masuk,$jnsrawat,$kelas_rawat,$adl_sub_acute,
           $adl_chronic,$icu_indikator,$icu_los,$ventilator_hour,$use_ind,$start_dttm,$stop_dttm,$upgrade_class_ind,$upgrade_class_class,
           $upgrade_class_los,$upgrade_class_payor,$add_payment_pct,$birth_weight,$discharge_status,$diagnosa,$procedure,
-          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->core->getPegawaiInfo('no_ktp', $this->core->getUserInfo('username', null, true)),
+          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->_resolveCoderNik(),
           $prosedur_non_bedah,$prosedur_bedah,$konsultasi,$tenaga_ahli,$keperawatan,$penunjang,
           $radiologi,$laboratorium,$pelayanan_darah,$rehabilitasi,$kamar,$rawat_intensif,$obat,
           $obat_kronis,$obat_kemoterapi,$alkes,$bmhp,$sewa_alat,
@@ -9743,7 +10244,7 @@ class Admin extends AdminModule
     $r =  $this->SetKlaimRalan($nosep,$nokartu,$tgl_registrasi,$keluar,$cara_masuk,$jnsrawat,$kelas_rawat,$adl_sub_acute,
           $adl_chronic,$icu_indikator,$icu_los,$ventilator_hour,$use_ind,$start_dttm,$stop_dttm,$upgrade_class_ind,$upgrade_class_class,
           $upgrade_class_los,$upgrade_class_payor,$add_payment_pct,$birth_weight,$discharge_status,$diagnosa,$procedure,
-          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->core->getPegawaiInfo('no_ktp', $this->core->getUserInfo('username', null, true)),
+          $tarif_poli_eks,$nama_dokter,$this->settings->get('vedika.eklaim_kelasrs'),$this->settings->get('vedika.eklaim_payor_id'),$this->settings->get('vedika.eklaim_payor_cd'),$this->settings->get('vedika.eklaim_cob_cd'),$this->_resolveCoderNik(),
           $prosedur_non_bedah,$prosedur_bedah,$konsultasi,$tenaga_ahli,$keperawatan,$penunjang,
           $radiologi,$laboratorium,$pelayanan_darah,$rehabilitasi,$kamar,$rawat_intensif,$obat,
           $obat_kronis,$obat_kemoterapi,$alkes,$bmhp,$sewa_alat,
@@ -9771,7 +10272,7 @@ class Admin extends AdminModule
     $result['steps']['final_klaim'] = true;
 
     // STEP TERAKHIR: KIRIM KE DATA CENTER
-    $r = $this->KirimKlaimIndividualKeDC($nosep);
+    $r = $this->KirimKlaimIndividualKeDC($nosep, $isReedit);
     if (!$r['ok']) return $this->stop($result, 'kirim_datacenter', $r);
     $result['steps']['kirim_datacenter'] = true;
 
@@ -9779,8 +10280,7 @@ class Admin extends AdminModule
     $result['last_step'] = 'kirim_datacenter';
     $result['datacenter'] = $r;
 
-    $this->jsonResponse($result);
-    exit();
+    return $this->jsonResponse($result);
   }
   
   public function postSetIDRG()
@@ -10269,7 +10769,50 @@ private function CekSITB($nomor_sep,$sitb){
                           "nomor_sep":"'.$nomor_sep.'"
                       }
                  }';
-      $msg= $this->Request($request);
+      $msg = $this->Request($request);
+      $reeditSuccess = $this->_isClaimReadyForEdit($msg);
+
+      if (!$reeditSuccess) {
+          return [
+              'ok' => false,
+              'error_at' => 'reedit_claim',
+              'response' => $msg
+          ];
+      }
+
+      // Klaim yang sudah final juga harus membuka kembali hasil grouper IDRG.
+      // Tanpa langkah ini set_claim_data dapat ditolak: "coding sudah final".
+      $idrgRequest = json_encode([
+          'metadata' => ['method' => 'idrg_grouper_reedit'],
+          'data' => ['nomor_sep' => $nomor_sep]
+      ]);
+      $idrgResponse = $this->Request($idrgRequest);
+      $idrgSuccess = $this->_isClaimReadyForEdit($idrgResponse);
+
+      return [
+          'ok' => $idrgSuccess,
+          'error_at' => $idrgSuccess ? null : 'idrg_grouper_reedit',
+          'response' => $idrgResponse,
+          'reedit_claim' => $msg,
+          'idrg_grouper_reedit' => $idrgResponse
+      ];
+  }
+
+  private function _isClaimReadyForEdit($response)
+  {
+      if (!is_array($response) || !isset($response['metadata']['message'])) {
+          return false;
+      }
+
+      $message = strtolower(trim((string) $response['metadata']['message']));
+      if ($message === 'ok') {
+          return true;
+      }
+
+      // Retry-safe: pesan ini berarti final sudah terbuka dari percobaan
+      // sebelumnya, sehingga set dan grouping ulang boleh dilanjutkan.
+      return strpos($message, 'belum final') !== false
+          || strpos($message, 'not final') !== false;
   }
 
   private function postDeleteKlaim($nomor_sep){
@@ -10695,14 +11238,14 @@ private function FinalisasiKlaim($nomor_sep) {
 }
 
 
-  private function KirimKlaimIndividualKeDC($nomor_sep)
+  private function KirimKlaimIndividualKeDC($nomor_sep, $forceResend = false)
     {
         // Idempotent: jangan kirim ulang jika sebelumnya sudah sukses terkirim.
         $alreadySent = $this->db('inacbg_data_terkirim')
             ->where('no_sep', $nomor_sep)
             ->oneArray();
 
-        if (!empty($alreadySent)) {
+        if (!$forceResend && !empty($alreadySent)) {
             return [
                 'ok' => true,
                 'skipped' => true,
@@ -11077,8 +11620,453 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
       exit();
     }
     
+    private function _queueGroupingAfterStatusSaved($noRawat, $nosep, $jenis, $targetStatus)
+    {
+        if (!in_array((string) $targetStatus, ['Lengkap', 'Pengajuan'], true)) {
+            return;
+        }
+
+        $username = (string) $this->core->getUserInfo('username', null, true);
+        $coderNik = (string) $this->core->getPegawaiInfo('no_ktp', $username);
+        $queued = $this->_enqueueBackgroundGrouping(
+            $noRawat,
+            $nosep,
+            $jenis,
+            $targetStatus,
+            $username,
+            $coderNik
+        );
+
+        if (empty($queued['status'])) {
+            // Jangan pernah meloloskan berkas bila validasi background bahkan
+            // tidak berhasil dimasukkan ke antrean.
+            $stmt = $this->db()->pdo()->prepare(
+                'DELETE FROM mlite_vedika WHERE no_rawat = ? AND nosep = ? AND status = ?'
+            );
+            $stmt->execute([$noRawat, $nosep, $targetStatus]);
+            throw new \RuntimeException(isset($queued['message'])
+                ? $queued['message']
+                : 'Antrean grouping INACBG tidak tersedia');
+        }
+    }
+
+    private function _enqueueBackgroundGrouping(
+        $noRawat,
+        $nosep,
+        $jenis,
+        $targetStatus,
+        $requestedBy,
+        $coderNik
+    ) {
+        $noRawat = trim((string) $noRawat);
+        $nosep = trim((string) $nosep);
+
+        if ($noRawat === '' || $nosep === '') {
+            return ['status' => false, 'message' => 'Nomor rawat atau SEP kosong'];
+        }
+
+        $lockName = 'vedika_grouping_enqueue_' . sha1($nosep . '|' . $noRawat);
+        if (!$this->_acquirePDFQueueLock($lockName, 5)) {
+            return ['status' => false, 'message' => 'Gagal memperoleh lock antrean grouping'];
+        }
+
+        try {
+            $pdo = $this->db()->pdo();
+            $find = $pdo->prepare(
+                'SELECT id, status FROM mlite_vedika_grouping_queue
+                 WHERE no_rawat = ? OR nosep = ? ORDER BY id DESC LIMIT 1'
+            );
+            $find->execute([$noRawat, $nosep]);
+            $existing = $find->fetch(\PDO::FETCH_ASSOC);
+
+            if ($existing && in_array($existing['status'], ['queued', 'processing'], true)) {
+                return [
+                    'status' => true,
+                    'job_id' => (int) $existing['id'],
+                    'reused' => true
+                ];
+            }
+
+            if ($existing) {
+                $update = $pdo->prepare(
+                    "UPDATE mlite_vedika_grouping_queue
+                     SET no_rawat = ?, nosep = ?, jenis = ?, target_status = ?,
+                         requested_by = ?, coder_nik = ?, status = 'queued', attempts = 0,
+                         last_step = NULL, message = NULL, created_at = NOW(),
+                         started_at = NULL, finished_at = NULL, heartbeat_at = NULL
+                     WHERE id = ?"
+                );
+                $update->execute([
+                    $noRawat, $nosep, $jenis, $targetStatus,
+                    substr((string) $requestedBy, 0, 50),
+                    substr((string) $coderNik, 0, 50),
+                    $existing['id']
+                ]);
+                return ['status' => true, 'job_id' => (int) $existing['id'], 'reused' => true];
+            }
+
+            $insert = $pdo->prepare(
+                "INSERT INTO mlite_vedika_grouping_queue
+                 (no_rawat, nosep, jenis, target_status, requested_by, coder_nik,
+                  status, attempts, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, NOW())"
+            );
+            $insert->execute([
+                $noRawat, $nosep, $jenis, $targetStatus,
+                substr((string) $requestedBy, 0, 50),
+                substr((string) $coderNik, 0, 50)
+            ]);
+
+            return ['status' => true, 'job_id' => (int) $pdo->lastInsertId(), 'reused' => false];
+        } catch (\Throwable $e) {
+            return ['status' => false, 'message' => 'Antrean grouping gagal: ' . $e->getMessage()];
+        } finally {
+            $this->_releasePDFQueueLock($lockName);
+        }
+    }
+
+    private function _getLatestGroupingFailure($noRawat, $nosep)
+    {
+        try {
+            $stmt = $this->db()->pdo()->prepare(
+                "SELECT last_step, message, finished_at
+                 FROM mlite_vedika_grouping_queue
+                 WHERE status = 'failed' AND (no_rawat = ? OR (? <> '' AND nosep = ?))
+                 ORDER BY id DESC LIMIT 1"
+            );
+            $stmt->execute([$noRawat, $nosep, $nosep]);
+            $failure = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$failure) {
+                return null;
+            }
+
+            $message = (string) $failure['message'];
+            if (stripos($message, 'diagnosa kosong') !== false || stripos($message, 'diagnosis kosong') !== false) {
+                $specificMessage = $this->_onlyIMDiagnosisMessageForEpisode($noRawat);
+                if ($specificMessage !== null) {
+                    $message = $specificMessage;
+                }
+            }
+
+            return [
+                'last_step' => htmlspecialchars((string) $failure['last_step'], ENT_QUOTES, 'UTF-8'),
+                'message' => htmlspecialchars($message, ENT_QUOTES, 'UTF-8'),
+                'finished_at' => htmlspecialchars((string) $failure['finished_at'], ENT_QUOTES, 'UTF-8')
+            ];
+        } catch (\Throwable $e) {
+            // Halaman daftar tetap dapat dibuka saat tabel antrean belum dipasang.
+            return null;
+        }
+    }
+
+    public function processGroupingQueueOnce($workerId)
+    {
+        $pdo = $this->db()->pdo();
+        $workerId = substr((string) $workerId, 0, 120);
+
+        // Pulihkan pekerjaan yang ditinggalkan worker mati lebih dari 15 menit.
+        $stale = $pdo->prepare(
+            "UPDATE mlite_vedika_grouping_queue
+             SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'queued' END,
+                 last_step = CASE WHEN attempts >= 3 THEN 'worker' ELSE last_step END,
+                 message = CASE WHEN attempts >= 3
+                     THEN 'Worker grouping terhenti tiga kali'
+                     ELSE 'Mengulang pekerjaan setelah worker terhenti' END,
+                 started_at = CASE WHEN attempts >= 3 THEN started_at ELSE NULL END,
+                 finished_at = CASE WHEN attempts >= 3 THEN NOW() ELSE NULL END,
+                 heartbeat_at = NOW()
+             WHERE status = 'processing'
+               AND COALESCE(heartbeat_at, started_at) < DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+        );
+        $stale->execute();
+
+        $rollbackStale = $pdo->prepare(
+            "DELETE v FROM mlite_vedika v
+             INNER JOIN mlite_vedika_grouping_queue q
+                ON q.no_rawat = v.no_rawat AND q.nosep = v.nosep
+             WHERE q.status = 'failed'
+               AND q.message = 'Worker grouping terhenti tiga kali'
+               AND v.status = q.target_status"
+        );
+        $rollbackStale->execute();
+
+        $dequeueLock = 'vedika_grouping_dequeue';
+        if (!$this->_acquirePDFQueueLock($dequeueLock, 2)) {
+            return ['status' => true, 'idle' => true, 'message' => 'Antrean sedang diperiksa worker lain'];
+        }
+
+        $job = null;
+        try {
+            $select = $pdo->query(
+                "SELECT * FROM mlite_vedika_grouping_queue
+                 WHERE status = 'queued' AND attempts < 3
+                 ORDER BY created_at ASC, id ASC LIMIT 1"
+            );
+            $job = $select->fetch(\PDO::FETCH_ASSOC);
+            if ($job) {
+                $claim = $pdo->prepare(
+                    "UPDATE mlite_vedika_grouping_queue
+                     SET status = 'processing', attempts = attempts + 1,
+                         message = ?, started_at = NOW(), heartbeat_at = NOW()
+                     WHERE id = ? AND status = 'queued'"
+                );
+                $claim->execute(['Diproses oleh ' . $workerId, $job['id']]);
+                if ($claim->rowCount() !== 1) {
+                    $job = null;
+                } else {
+                    $job['attempts'] = (int) $job['attempts'] + 1;
+                }
+            }
+        } finally {
+            $this->_releasePDFQueueLock($dequeueLock);
+        }
+
+        if (!$job) {
+            return ['status' => true, 'idle' => true, 'message' => 'Antrean grouping kosong'];
+        }
+
+        $patientLock = 'vedika_grouping_patient_' . sha1($job['nosep'] . '|' . $job['no_rawat']);
+        if (!$this->_acquirePDFQueueLock($patientLock, 2)) {
+            $retry = $pdo->prepare(
+                "UPDATE mlite_vedika_grouping_queue
+                 SET status = 'queued', message = 'Menunggu proses pasien yang sama',
+                     started_at = NULL, heartbeat_at = NOW() WHERE id = ?"
+            );
+            $retry->execute([$job['id']]);
+            return ['status' => true, 'idle' => false, 'job_id' => (int) $job['id'], 'message' => 'Ditunda'];
+        }
+
+        try {
+            $payload = $this->_buildBackgroundGroupingPayload($job['no_rawat'], $job['nosep']);
+            $payload['coder_nik'] = (string) $job['coder_nik'];
+
+            $oldPost = $_POST;
+            $_POST = $payload;
+            $this->captureJsonResponse = true;
+            try {
+                $result = $this->postProsesKlaimFull();
+            } finally {
+                $this->captureJsonResponse = false;
+                $_POST = $oldPost;
+            }
+
+            if (!is_array($result) || empty($result['ok'])) {
+                $this->_failBackgroundGrouping($job, $this->_groupingFailureMessage($result),
+                    is_array($result) && isset($result['last_step']) ? $result['last_step'] : 'response');
+                return [
+                    'status' => false,
+                    'idle' => false,
+                    'job_id' => (int) $job['id'],
+                    'no_rawat' => $job['no_rawat'],
+                    'message' => $this->_groupingFailureMessage($result)
+                ];
+            }
+
+            $done = $pdo->prepare(
+                "UPDATE mlite_vedika_grouping_queue
+                 SET status = 'done', last_step = ?, message = 'Grouping dan Kirim DC berhasil',
+                     finished_at = NOW(), heartbeat_at = NOW() WHERE id = ?"
+            );
+            $done->execute([isset($result['last_step']) ? $result['last_step'] : 'selesai', $job['id']]);
+
+            return [
+                'status' => true,
+                'idle' => false,
+                'job_id' => (int) $job['id'],
+                'no_rawat' => $job['no_rawat'],
+                'message' => 'Grouping background berhasil'
+            ];
+        } catch (\Throwable $e) {
+            if ((int) $job['attempts'] >= 3) {
+                $this->_failBackgroundGrouping($job, 'Worker gagal: ' . $e->getMessage(), 'worker');
+            } else {
+                $retry = $pdo->prepare(
+                    "UPDATE mlite_vedika_grouping_queue
+                     SET status = 'queued', last_step = 'worker', message = ?,
+                         started_at = NULL, heartbeat_at = NOW() WHERE id = ?"
+                );
+                $retry->execute([substr('Akan dicoba lagi: ' . $e->getMessage(), 0, 65000), $job['id']]);
+            }
+
+            return [
+                'status' => false,
+                'idle' => false,
+                'job_id' => (int) $job['id'],
+                'no_rawat' => $job['no_rawat'],
+                'message' => $e->getMessage()
+            ];
+        } finally {
+            $this->_releasePDFQueueLock($patientLock);
+        }
+    }
+
+    private function _buildBackgroundGroupingPayload($noRawat, $nosep)
+    {
+        $this->captureInacbgsHtml = true;
+        try {
+            $html = $this->getBridgingInacbgs($this->convertNorawat($noRawat));
+        } finally {
+            $this->captureInacbgsHtml = false;
+        }
+
+        if (!is_string($html) || trim($html) === '') {
+            throw new \RuntimeException('Form INACBG tidak berhasil dibentuk');
+        }
+        if (!class_exists('DOMDocument')) {
+            throw new \RuntimeException('Ekstensi PHP DOM belum aktif');
+        }
+
+        $dom = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            throw new \RuntimeException('Form INACBG tidak dapat dibaca worker');
+        }
+
+        $payload = [];
+        $xpath = new \DOMXPath($dom);
+        foreach ($xpath->query('//*[@name]') as $element) {
+            $name = trim((string) $element->getAttribute('name'));
+            if ($name === '') {
+                continue;
+            }
+
+            $tag = strtolower($element->nodeName);
+            if ($tag === 'select') {
+                $value = '';
+                $first = null;
+                foreach ($element->getElementsByTagName('option') as $option) {
+                    if ($first === null) {
+                        $first = $option;
+                    }
+                    if ($option->hasAttribute('selected')) {
+                        $first = $option;
+                        break;
+                    }
+                }
+                if ($first !== null) {
+                    $value = $first->hasAttribute('value')
+                        ? $first->getAttribute('value')
+                        : $first->textContent;
+                }
+            } elseif ($tag === 'textarea') {
+                $value = $element->textContent;
+            } else {
+                $value = $element->getAttribute('value');
+            }
+
+            // Sama seperti JS modal saat ini: nama ganda memakai nilai terakhir.
+            $payload[$name] = (string) $value;
+        }
+
+        // Kompatibilitas dengan nama field lama pada template inacbgs.html.
+        $payload['appearance_1'] = isset($payload['appearance_1'])
+            ? $payload['appearance_1']
+            : (isset($payload['appareance_1']) ? $payload['appareance_1'] : '0');
+        $payload['appearance_5'] = isset($payload['appearance_5'])
+            ? $payload['appearance_5']
+            : (isset($payload['appareance_5']) ? $payload['appareance_5'] : '0');
+        foreach (['mobil_jenazah', 'desinfektan_mobil_jenazah', 'upgrade_class_payor'] as $optional) {
+            if (!isset($payload[$optional])) {
+                $payload[$optional] = '';
+            }
+        }
+
+        // Pada satu no_rawat dapat terbit lebih dari satu SEP. Job harus selalu
+        // memakai SEP yang dipilih coder, bukan hasil lookup no_rawat yang ambigu.
+        $payload['nosep'] = (string) $nosep;
+        $sep = $this->db('bridging_sep')->where('no_sep', $nosep)->oneArray();
+        if ($sep) {
+            if (isset($sep['no_kartu']) && trim((string) $sep['no_kartu']) !== '') {
+                $payload['nokartu'] = (string) $sep['no_kartu'];
+            }
+            if (isset($sep['klsrawat']) && trim((string) $sep['klsrawat']) !== '') {
+                $payload['kelas_rawat'] = (string) $sep['klsrawat'];
+            }
+        }
+
+        return $payload;
+    }
+
+    private function _failBackgroundGrouping(array $job, $message, $lastStep)
+    {
+        $pdo = $this->db()->pdo();
+        $message = substr(trim((string) $message), 0, 65000);
+        if ($message === '') {
+            $message = 'Data koding tidak lolos grouping INACBG';
+        }
+
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+        try {
+            // Hanya tarik kembali record yang masih merupakan status yang diuji job ini.
+            // Perubahan baru oleh user lain tidak ikut terhapus.
+            $delete = $pdo->prepare(
+                'DELETE FROM mlite_vedika
+                 WHERE no_rawat = ? AND nosep = ? AND status = ?'
+            );
+            $delete->execute([$job['no_rawat'], $job['nosep'], $job['target_status']]);
+
+            $failed = $pdo->prepare(
+                "UPDATE mlite_vedika_grouping_queue
+                 SET status = 'failed', last_step = ?, message = ?,
+                     finished_at = NOW(), heartbeat_at = NOW() WHERE id = ?"
+            );
+            $failed->execute([substr((string) $lastStep, 0, 50), $message, $job['id']]);
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    private function _groupingFailureMessage($result)
+    {
+        if (!is_array($result)) {
+            return 'Respons proses grouping tidak valid';
+        }
+
+        $candidates = [
+            isset($result['error']['response']['metadata']['message']) ? $result['error']['response']['metadata']['message'] : null,
+            isset($result['error']['metadata']['message']) ? $result['error']['metadata']['message'] : null,
+            isset($result['error']['response']['message']) ? $result['error']['response']['message'] : null,
+            isset($result['error']['message']) ? $result['error']['message'] : null,
+            isset($result['message']) ? $result['message'] : null
+        ];
+        foreach ($candidates as $candidate) {
+            if (is_scalar($candidate) && trim((string) $candidate) !== '') {
+                return trim((string) $candidate);
+            }
+        }
+
+        return 'Data koding tidak lolos pada tahap '
+            . (isset($result['last_step']) ? $result['last_step'] : 'grouping');
+    }
+
+    private function _resolveCoderNik()
+    {
+        if (isset($_POST['coder_nik']) && trim((string) $_POST['coder_nik']) !== '') {
+            return $this->validTeks(trim((string) $_POST['coder_nik']));
+        }
+
+        $username = $this->core->getUserInfo('username', null, true);
+        return $this->core->getPegawaiInfo('no_ktp', $username);
+    }
+
     private function jsonResponse($data)
     {
+        if ($this->captureJsonResponse) {
+            return $data;
+        }
+
         header('Content-Type: application/json');
         echo json_encode($data);
         exit;
@@ -11090,7 +12078,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         $result['last_step'] = $step;
         $result['error'] = $detail;
     
-        $this->jsonResponse($result);
+        return $this->jsonResponse($result);
     }
     
     private function splitDiagnosaIM($diagnosa): array
@@ -11099,7 +12087,8 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         if (!is_string($diagnosa) || trim($diagnosa) === '') {
             return [
                 'idrg'   => '',
-                'inacbg' => ''
+                'inacbg' => '',
+                'im_codes' => ''
             ];
         }
     
@@ -11111,7 +12100,8 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         if (empty($codes)) {
             return [
                 'idrg'   => '',
-                'inacbg' => ''
+                'inacbg' => '',
+                'im_codes' => ''
             ];
         }
     
@@ -11125,11 +12115,13 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
     
         $idrg   = [];
         $inacbg = [];
+        $imOnly = [];
     
         foreach ($codes as $code) {
             if (in_array($code, $imCodes, true)) {
                 // IM → hanya IDRG
                 $idrg[] = $code;
+                $imOnly[] = $code;
             } else {
                 // Non IM → keduanya
                 $idrg[]   = $code;
@@ -11139,8 +12131,44 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
     
         return [
             'idrg'   => implode('#', $idrg),
-            'inacbg' => implode('#', $inacbg)
+            'inacbg' => implode('#', $inacbg),
+            'im_codes' => implode('#', $imOnly)
         ];
+    }
+
+    private function _onlyIMDiagnosisMessage($codes)
+    {
+        $list = array_values(array_filter(array_map('trim', explode('#', (string) $codes))));
+        $label = count($list) ? ' (' . implode(', ', $list) . ')' : '';
+        return 'Diagnosis INACBG kosong: Tambahkan minimal satu diagnosis non-IM yang sesuai dengan dokumentasi klinis, lalu set status ulang.';
+    }
+
+    private function _onlyIMDiagnosisMessageForEpisode($noRawat)
+    {
+        $reg = $this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray();
+        if (!$reg || !isset($reg['status_lanjut'])) return null;
+        $rows = $this->db('diagnosa_pasien')
+            ->join('penyakit', 'penyakit.kd_penyakit = diagnosa_pasien.kd_penyakit')
+            ->where('diagnosa_pasien.no_rawat', $noRawat)
+            ->where('diagnosa_pasien.status', $reg['status_lanjut'])
+            ->asc('diagnosa_pasien.prioritas')
+            ->toArray();
+        if (!$rows) return null;
+        $codes = [];
+        foreach ($rows as $row) {
+            if (!isset($row['im']) || (string) $row['im'] !== '1') return null;
+            $codes[] = $row['kd_penyakit'];
+        }
+        return $this->_onlyIMDiagnosisMessage(implode('#', $codes));
+    }
+
+    private function _diagnosisRowsOnlyIM(array $rows)
+    {
+        if (!$rows) return false;
+        foreach ($rows as $row) {
+            if (!isset($row['im']) || (string) $row['im'] !== '1') return false;
+        }
+        return true;
     }
     
     private function splitProcedureIM($procedure): array
@@ -11176,13 +12204,17 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         $idrg   = [];
         $inacbg = [];
     
-        foreach ($codes as $code) {
+        foreach ($codes as $codeWithVolume) {
+            $code = $codeWithVolume;
+            if (preg_match('/^(.+)\+([1-9])$/', $codeWithVolume, $match)) {
+                $code = $match[1];
+            }
             if (in_array($code, $imCodes, true)) {
                 // IM → hanya IDRG
-                $idrg[] = $code;
+                $idrg[] = $codeWithVolume;
             } else {
                 // Non IM → keduanya
-                $idrg[]   = $code;
+                $idrg[]   = $codeWithVolume;
                 $inacbg[] = $code;
             }
         }
@@ -11624,6 +12656,18 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
       $jenis      = isset($_GET['jenis']) ? $_GET['jenis'] : '2';
       $poli       = isset($_GET['poli']) ? $_GET['poli'] : '';
       $status     = isset($_GET['status']) ? $_GET['status'] : 'Pengajuan';
+
+      $startDateObject = \DateTime::createFromFormat('!Y-m-d', $start_date);
+      $endDateObject = \DateTime::createFromFormat('!Y-m-d', $end_date);
+      if (
+        !$startDateObject || !$endDateObject
+        || $startDateObject->format('Y-m-d') !== $start_date
+        || $endDateObject->format('Y-m-d') !== $end_date
+        || $startDateObject > $endDateObject
+      ) {
+        echo "Rentang tanggal download ZIP tidak valid.";
+        exit();
+      }
     
       $kode = 'KLM';
     
@@ -11748,7 +12792,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         echo "Gagal membuat file ZIP.";
         exit();
       }
-    
+
       $added = 0;
       $skipped = [];
     
@@ -11758,11 +12802,14 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         if (file_exists($filePath) && filesize($filePath) > 0) {
           $safeSep = isset($row['nosep']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', $row['nosep']) : '';
           $safeRm  = isset($row['no_rkm_medis']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', $row['no_rkm_medis']) : '';
-          $safeTgl = isset($row['tanggal_zip']) ? preg_replace('/[^0-9\-]/', '', $row['tanggal_zip']) : '';
-    
-          if ($safeTgl == '') {
-            $safeTgl = isset($row['tgl_registrasi']) ? preg_replace('/[^0-9\-]/', '', $row['tgl_registrasi']) : date('Y-m-d');
+          $tanggalZip = isset($row['tanggal_zip']) ? trim((string) $row['tanggal_zip']) : '';
+          if ($tanggalZip === '' && isset($row['tgl_registrasi'])) {
+            $tanggalZip = trim((string) $row['tgl_registrasi']);
           }
+          $tanggalTimestamp = strtotime($tanggalZip);
+          $safeTgl = $tanggalTimestamp !== false
+            ? date('Y-m-d', $tanggalTimestamp)
+            : $start_date;
     
           if ($safeSep == '') {
             $safeSep = str_replace('/', '', $row['no_rawat']);
@@ -11772,7 +12819,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             $safeRm = 'RM';
           }
     
-          $zipFileName = $safeSep . '.pdf';
+          $zipFileName = $safeTgl . '/' . $safeSep . '.pdf';
     
           /*
            * Cegah nama file dobel di dalam ZIP.
@@ -11781,7 +12828,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
           $baseZipFileName = $zipFileName;
     
           while ($zip->locateName($zipFileName) !== false) {
-            $zipFileName = str_replace('.pdf', '_' . $counter . '.pdf', $baseZipFileName);
+            $zipFileName = substr($baseZipFileName, 0, -4) . '_' . $counter . '.pdf';
             $counter++;
           }
     

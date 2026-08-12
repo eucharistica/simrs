@@ -1,440 +1,448 @@
 <!--vedika/view/admin/index.php-->
 <article class="row" id="display">
-    <div class="col-md-12">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <form action="{?=url(ADMIN.'/vedika/index')?}" method="get">
-                  <div class="row">
-                    <div class="col-md-3" style="padding-left:25px;padding-right:10px;padding-top:10px;">
-                      <label>Tanggal Awal</label>
-                      <input type="text"
-                             id="start_date"
-                             class="form-control tanggal"
-                             name="start_date"
-                             required
-                             value="{if: isset($_GET['start_date'])}{?=$_GET['start_date']?}{else}{?=date('Y-m-d')?}{/if}">
-                    </div>
-        
-                    <div class="col-md-3" style="padding-left:10px;padding-right:10px;padding-top:10px;">
-                      <label>Tanggal Akhir</label>
-                      <input type="text"
-                             id="end_date"
-                             class="form-control tanggal"
-                             name="end_date"
-                             required
-                             value="{if: isset($_GET['end_date'])}{?=$_GET['end_date']?}{else}{?=date('Y-m-d')?}{/if}">
-                    </div>
-                    
+  <div class="col-md-12">
+      <div class="panel panel-default">
+          <div class="panel-heading">
+              <form action="{?=url(ADMIN.'/vedika/index')?}" method="get">
+                <div class="row">
+                  <div class="col-md-3" style="padding-left:25px;padding-right:10px;padding-top:10px;">
+                    <label>Tanggal Awal</label>
+                    <input type="text"
+                           id="start_date"
+                           class="form-control tanggal"
+                           name="start_date"
+                           required
+                           value="{if: isset($_GET['start_date'])}{?=$_GET['start_date']?}{else}{?=date('Y-m-d')?}{/if}">
                   </div>
-                  <div class="row">
-                    <div class="col-md-3" style="padding-left:25px;padding-right:10px;padding-top:10px;">
-                      <label>Poliklinik</label>
-                      <div class="form-group">
-                            <select name="poli" class="form-control">
-                                <option value="">Semua</option>
-                                {loop: $vedika.poliklinik as $data}
-                                <option value="{$data.kd_poli}"{if: isset($_GET['poli']) && $_GET['poli'] == $data.kd_poli}selected{/if}>{$data.nm_poli}</option>
-                                {/loop}
-                            </select>
-                      </div>
-                    </div>  
-                     
-                    <div class="col-md-2" style="padding-left:10px;padding-right:5px;padding-top:8px;">
-                      <label>&nbsp;</label>
-                      <button type="submit"
-                              name="submit"
-                              class="btn btn-primary btn-block"
-                              style="margin-top:5px;">
-                        Cari
-                      </button>
-                    </div>
-        
-                    <div class="col-md-4">
-                      <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
-                      <input type="hidden" name="s" value="">
-                    </div>  
+      
+                  <div class="col-md-3" style="padding-left:10px;padding-right:10px;padding-top:10px;">
+                    <label>Tanggal Akhir</label>
+                    <input type="text"
+                           id="end_date"
+                           class="form-control tanggal"
+                           name="end_date"
+                           required
+                           value="{if: isset($_GET['end_date'])}{?=$_GET['end_date']?}{else}{?=date('Y-m-d')?}{/if}">
                   </div>
-                </form>
-            </div>
-            <div class="panel-body">
-                <div class="row clearfix">
-                  <div class="col col-md-6">
-                    <p><a href="https://vedika.rsudmatraman.my.id" class="btn btn-sm btn-success" style="margin:0;padding:1px 4px;" target="_blank"><i class="fa fa-file-excel-o" aria-hidden="true"></i> Monitoring Vedika</a></p>
-                    <h3 style="margin-top:5px;margin-bottom:15px;">Jumlah: {?=count($vedika.totalRecords)?}
-                    </h3>
-                  </div>
-                  <div class="col col-md-6">
-                    <form action="{$vedika.searchUrl}"
-                          class="searchbox-input form-inline pull-right padding-bottom-lg"
-                          style="margin-top:5px;margin-bottom:15px;">
-                        <div class="input-group">
-                            <input type="text" name="s" minlength="3" class="form-control" placeholder="Search" required>
-                            <input type="hidden" name="start_date"
-                                   value="{if: isset($_GET['start_date'])}{?=$_GET['start_date']?}{else}{?=date('Y-m-d')?}{/if}">
-                            <input type="hidden" name="end_date"
-                                   value="{if: isset($_GET['end_date'])}{?=$_GET['end_date']?}{else}{?=date('Y-m-d')?}{/if}">
-                            <input type="hidden" name="poli"
-                                   value="{if: isset($_GET['poli'])}{?=$_GET['poli']?}{/if}">
-                            <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
-                            <span class="input-group-btn">
-                                <button class="btn btn-default" type="submit">
-                                  <span class="glyphicon glyphicon-search"></span>
-                                </button>
-                            </span>
-                        </div>
-                    </form>
-                  </div>
+                  
                 </div>
-      					<div class="table-responsive no-margin">
-      						<table class="table table-striped no-margin">
-      							<thead>
-      								<tr>
-                        <th>No</th>
-                        <th>Aksi dan Proses</th>
-                        <th>Data Pasien</th>
-                        <th>Data Registrasi</th>
-                        <th>Data Kunjungan</th>
-                        <th>Berkas Digital</th>
-      								</tr>
-      							</thead>
-      							<tbody>
-              			{if: !empty($vedika.list)}
-      								{loop: $vedika.list}
-      								<tr>                       
-                        <td>{$value.nomor}</td>
-                        <td>
-                          {if: $value.no_sep == ''}
-                            <a href="{$value.formSepURL}" class="btn btn-info btn-xs" data-toggle="modal" data-target="#moduleModal">
-                              <i class="fa fa-download"></i> Ambil SEP dari Vclaim
-                            </a>
-                          {else}
-                            <button class="btn btn-info btn-xs">
-                              <i class="fa fa-file-o"></i> {$value.no_sep}
-                            </button>
+                <div class="row">
+                  <div class="col-md-3" style="padding-left:25px;padding-right:10px;padding-top:10px;">
+                    <label>Poliklinik</label>
+                    <div class="form-group">
+                          <select name="poli" class="form-control">
+                              <option value="">Semua</option>
+                              {loop: $vedika.poliklinik as $data}
+                              <option value="{$data.kd_poli}"{if: isset($_GET['poli']) && $_GET['poli'] == $data.kd_poli}selected{/if}>{$data.nm_poli}</option>
+                              {/loop}
+                          </select>
+                    </div>
+                  </div>  
+                   
+                  <div class="col-md-2" style="padding-left:10px;padding-right:5px;padding-top:8px;">
+                    <label>&nbsp;</label>
+                    <button type="submit"
+                            name="submit"
+                            class="btn btn-primary btn-block"
+                            style="margin-top:5px;">
+                      Cari
+                    </button>
+                  </div>
+      
+                  <div class="col-md-4">
+                    <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
+                    <input type="hidden" name="s" value="">
+                  </div>  
+                </div>
+              </form>
+          </div>
+          <div class="panel-body">
+              <div class="row clearfix">
+                <div class="col col-md-6">
+                  <p><a href="https://vedika.rsudmatraman.my.id" class="btn btn-sm btn-success" style="margin:0;padding:1px 4px;" target="_blank"><i class="fa fa-file-excel-o" aria-hidden="true"></i> Monitoring Vedika</a></p>
+                  <h3 style="margin-top:5px;margin-bottom:15px;">Jumlah: {?=count($vedika.totalRecords)?}
+                  </h3>
+                </div>
+                <div class="col col-md-6">
+                  <form action="{$vedika.searchUrl}"
+                        class="searchbox-input form-inline pull-right padding-bottom-lg"
+                        style="margin-top:5px;margin-bottom:15px;">
+                      <div class="input-group">
+                          <input type="text" name="s" minlength="3" class="form-control" placeholder="Search" required>
+                          <input type="hidden" name="start_date"
+                                 value="{if: isset($_GET['start_date'])}{?=$_GET['start_date']?}{else}{?=date('Y-m-d')?}{/if}">
+                          <input type="hidden" name="end_date"
+                                 value="{if: isset($_GET['end_date'])}{?=$_GET['end_date']?}{else}{?=date('Y-m-d')?}{/if}">
+                          <input type="hidden" name="poli"
+                                 value="{if: isset($_GET['poli'])}{?=$_GET['poli']?}{/if}">
+                          <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
+                          <span class="input-group-btn">
+                              <button class="btn btn-default" type="submit">
+                                <span class="glyphicon glyphicon-search"></span>
+                              </button>
+                          </span>
+                      </div>
+                  </form>
+                </div>
+              </div>
+              <div class="table-responsive no-margin">
+                <table class="table table-striped no-margin">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>Aksi dan Proses</th>
+                      <th>Data Pasien</th>
+                      <th>Data Registrasi</th>
+                      <th>Data Kunjungan</th>
+                      <th>Berkas Digital</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                  {if: !empty($vedika.list)}
+                    {loop: $vedika.list}
+                    <tr>                       
+                      <td>{$value.nomor}</td>
+                      <td>
+                        {if: $value.no_sep == ''}
+                          <a href="{$value.formSepURL}" class="btn btn-info btn-xs" data-toggle="modal" data-target="#moduleModal">
+                            <i class="fa fa-download"></i> Ambil SEP dari Vclaim
+                          </a>
+                        {else}
+                          <button class="btn btn-info btn-xs">
+                            <i class="fa fa-file-o"></i> {$value.no_sep}
+                          </button>
+                        {/if}
+                        <br/>
+                        <a href="{$value.pdfURL}" target="_blank" class="btn btn-primary btn-xs">
+                          <i class="fa fa-print"></i> Lihat Data Klaim
+                        </a><br/>
+                        <a href="{$value.formVclaimURL}" class="btn btn-info btn-xs" data-toggle="modal" data-target="#moduleModal">
+                          <i class="fa fa-send"></i> Vclaim
+                        </a>                          
+                        {if: $value.no_sep == ''}
+                          <button class="btn btn-warning btn-xs">
+                  <i class="fa fa-check"></i> Status
+                </button><br>
+                        {else}
+                          <a href="{$value.setstatusURL}" class="btn btn-success btn-xs" data-toggle="modal" data-target="#statusModal">
+                  <i class="fa fa-check"></i> Status
+                </a>
+                          {loop: $value.status_pengajuan as $data}
+                          <span class="badge badge-{if: $data.status == 'Setuju'}success{elseif: $data.status == 'Perbaiki'}error{else}warning{/if}">{$data.status}</span>
+                          {/loop}
+                          <br><br>
+                        {/if}
+                        {if: $value.grouping_error}
+                          <div class="alert alert-danger" style="margin:8px 0 4px; padding:7px; min-width:230px;">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            <strong>Perbaiki, dan kirim ulang</strong><br>
+                            {$value.grouping_error.message}
+                          </div>
+                        {/if}
+                        {if: $value.kd_poli == 'IGDK'}
+                          <a href="{?=url([ADMIN,'vedika','asesmenigd',$value.status_lanjut,convertNorawat($value.no_rawat)])?}" class="btn btn-xs btn-danger" data-toggle="modal" data-target="#statusModal">Asesmen Medis</a>
+                        {/if}
+                      </td>
+              <td> 
+                        <table>
+                          <tr>
+                            <td width='120px'>No.Rawat</td><td>: {$value.no_rawat}</td>
+                            <!--<td width='120px'>No.Rawat</td><td data-no_rkm_medis="{$value.no_rkm_medis}" style="white-space: nowrap;"><a href="{?=url([ADMIN, 'vedika', 'rincian', $value.no_rawat])?}" data-toggle="modal" data-target="#riwayatModal">: {$value.no_rawat}</a></td>-->
+                            <!--<td width='120px'>No.Rawat</td><td data-no_rkm_medis="{$value.no_rkm_medis}" style="white-space: nowrap;"><a href="{?=url([ADMIN, 'dokter_igd', 'riwayatperawatan', $value.no_rkm_medis])?}" data-toggle="modal" data-target="#riwayatModal">: {$value.no_rawat}-->
+                            <!--</td>-->
+                          </tr>
+                          <tr>
+                            <td width='120px'>No.RM</td><td>: {$value.no_rkm_medis}</td>
+                          </tr>
+                          <tr>
+                            <td width='120px'>Nama Pasien</td><td data-no_rkm_medis="{$value.no_rkm_medis}" style="white-space: nowrap;"><a href="{?=url([ADMIN, 'pasien', 'riwayatperawatan', $value.no_rkm_medis])?}" data-toggle="modal" data-target="#riwayatModal">: {$value.nm_pasien}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td width='120px'>Umur</td><td>: {$value.umur} {$value.sttsumur}</td>
+                          </tr>
+                          <tr>
+                            <td width='120px'>Jenis Kelamin</td><td>: {if: $value.jk == 'L'}Laki-Laki{else}Perempuan{/if}</td>
+                          </tr>
+                          {if: $value.nm_poli == 'Spesialis Kandungan'}
+                          <tr>
+                              <td width='120px'>Jml.Kunj. /Bulan</td>
+                                <td>:
+                                  {if: $value.jumlah_kunjungan > 1}
+                                    <span style="color:red; font-weight:bold;">{$value.jumlah_kunjungan}</span>
+                                  {else}
+                                    {$value.jumlah_kunjungan}
+                                  {/if}
+                                </td>
+                          </tr>
                           {/if}
-                          <br/>
-                          <a href="{$value.pdfURL}" target="_blank" class="btn btn-primary btn-xs">
-      											<i class="fa fa-print"></i> Lihat Data Klaim
-      										</a><br/>
-                          <a href="{$value.formVclaimURL}" class="btn btn-info btn-xs" data-toggle="modal" data-target="#moduleModal">
-                            <i class="fa fa-send"></i> Vclaim
-                          </a>                          
-                          {if: $value.no_sep == ''}
-                            <button class="btn btn-warning btn-xs">
-        						<i class="fa fa-check"></i> Status
-        					</button><br>
-                          {else}
-                            <a href="{$value.setstatusURL}" class="btn btn-success btn-xs" data-toggle="modal" data-target="#statusModal">
-        						<i class="fa fa-check"></i> Status
-        					</a>
-                            {loop: $value.status_pengajuan as $data}
-                            <span class="badge badge-{if: $data.status == 'Setuju'}success{elseif: $data.status == 'Perbaiki'}error{else}warning{/if}">{$data.status}</span>
-                            {/loop}
-                            <br><br>
-                          {/if}
-                          {if: $value.kd_poli == 'IGDK'}
-                            <a href="{?=url([ADMIN,'vedika','asesmenigd',$value.status_lanjut,convertNorawat($value.no_rawat)])?}" class="btn btn-xs btn-danger" data-toggle="modal" data-target="#statusModal">Asesmen Medis</a>
-                          {/if}
-                        </td>
-      					<td> 
-                          <table>
-                            <tr>
-                              <td width='120px'>No.Rawat</td><td>: {$value.no_rawat}</td>
-                              <!--<td width='120px'>No.Rawat</td><td data-no_rkm_medis="{$value.no_rkm_medis}" style="white-space: nowrap;"><a href="{?=url([ADMIN, 'vedika', 'rincian', $value.no_rawat])?}" data-toggle="modal" data-target="#riwayatModal">: {$value.no_rawat}</a></td>-->
-                              <!--<td width='120px'>No.Rawat</td><td data-no_rkm_medis="{$value.no_rkm_medis}" style="white-space: nowrap;"><a href="{?=url([ADMIN, 'dokter_igd', 'riwayatperawatan', $value.no_rkm_medis])?}" data-toggle="modal" data-target="#riwayatModal">: {$value.no_rawat}-->
-                              <!--</td>-->
-                            </tr>
-                            <tr>
-                              <td width='120px'>No.RM</td><td>: {$value.no_rkm_medis}</td>
-                            </tr>
-                            <tr>
-                              <td width='120px'>Nama Pasien</td><td data-no_rkm_medis="{$value.no_rkm_medis}" style="white-space: nowrap;"><a href="{?=url([ADMIN, 'pasien', 'riwayatperawatan', $value.no_rkm_medis])?}" data-toggle="modal" data-target="#riwayatModal">: {$value.nm_pasien}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td width='120px'>Umur</td><td>: {$value.umur} {$value.sttsumur}</td>
-                            </tr>
-                            <tr>
-                              <td width='120px'>Jenis Kelamin</td><td>: {if: $value.jk == 'L'}Laki-Laki{else}Perempuan{/if}</td>
-                            </tr>
-                            {if: $value.nm_poli == 'Spesialis Kandungan'}
-                            <tr>
-                                <td width='120px'>Jml.Kunj. /Bulan</td>
-                                  <td>:
-                                    {if: $value.jumlah_kunjungan > 1}
-                                      <span style="color:red; font-weight:bold;">{$value.jumlah_kunjungan}</span>
-                                    {else}
-                                      {$value.jumlah_kunjungan}
-                                    {/if}
-                                  </td>
-                            </tr>
+                        </table>
+                      </td>
+                      <td>
+                        <table>
+                          <tr>
+                            <td width='120px'>{if: $tab == 'ralan'}Tgl.Registrasi{else}Tgl.Pulang{/if}</td><td>: {$value.tgl_registrasi} {$value.jam_reg}</td>
+                          </tr>
+                          <tr>
+                            <td width='120px'>{if: $tab == 'ralan'}Poliklinik{else}Bangsal/kamar{/if}</td><td>: {$value.nm_poli}</td>
+                          </tr>
+                          <tr>
+                            {if: $value.status_lanjut == 'Ralan'}
+                            <td width='120px'>Dokter</td><td>: {$value.nm_dokter}</td>
                             {/if}
-                          </table>
-                        </td>
-                        <td>
-                          <table>
-                            <tr>
-                              <td width='120px'>{if: $tab == 'ralan'}Tgl.Registrasi{else}Tgl.Pulang{/if}</td><td>: {$value.tgl_registrasi} {$value.jam_reg}</td>
-                            </tr>
-                            <tr>
-                              <td width='120px'>{if: $tab == 'ralan'}Poliklinik{else}Bangsal/kamar{/if}</td><td>: {$value.nm_poli}</td>
-                            </tr>
-                            <tr>
-                              {if: $value.status_lanjut == 'Ralan'}
-                              <td width='120px'>Dokter</td><td>: {$value.nm_dokter}</td>
-                              {/if}
-                              {if: $value.status_lanjut == 'Ranap'}
-                              <td width='120px'>Dokter</td>
-                              <td>:
-                                {loop: $value.nm_dokter as $data}
-                                  - {$data.nm_dokter}<br>
+                            {if: $value.status_lanjut == 'Ranap'}
+                            <td width='120px'>Dokter</td>
+                            <td>:
+                              {loop: $value.nm_dokter as $data}
+                                - {$data.nm_dokter}<br>
+                              {/loop}
+                            </td>
+                            {/if}
+                          </tr>
+                          <tr>
+                            <td width='120px'>Status</td><td>: {$value.status_lanjut} ({$value.png_jawab})</td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td>
+                        <table>
+                          <tr>
+                            <td width='120px'>No. Kunjungan</td><td>: {$value.no_rujukan}</td>
+                          </tr>
+                          <tr>
+                            <td width='120px'>No. Kartu</td><td>: {$value.no_peserta}</td>
+                          </tr>
+                          <tr>
+                            <td width='120px'><a href="{?=url([ADMIN,'vedika','sitb',$value.status_lanjut,$value.no_rkm_medis])?}" data-toggle="modal" data-target="#statusModal">No. SITB</a></td>
+                            <td>: {$value.no_sitb}
+                           </td>
+                          </tr>
+                          <tr>
+                            <td width="120px">
+                              <a href="{?=url([ADMIN,'vedika','ubahdiagnosa',$value.status_lanjut,convertNorawat($value.no_rawat)])?}"
+                                 class="js-ubah-medis"
+                                 data-toggle="modal"
+                                 data-target="#statusModal"
+                                 data-status="{$value.status_lanjut}"
+                                 data-no-rawat="{?=convertNorawat($value.no_rawat)?}"
+                                 data-summary-target="#diagnosa-{$value.nomor}">
+                                Dx. Utama
+                              </a>
+                            </td>
+                          
+                            <td>: <br>
+                              <span id="diagnosa-{$value.nomor}">
+                                {loop: $value.diagnosa_pasienx as $data}
+                                - ({$data.kd_penyakit})-{$data.nm_penyakit}<br>
                                 {/loop}
-                              </td>
-                              {/if}
-                            </tr>
-                            <tr>
-                              <td width='120px'>Status</td><td>: {$value.status_lanjut} ({$value.png_jawab})</td>
-                            </tr>
-                          </table>
-                        </td>
-                        <td>
-                          <table>
-                            <tr>
-                              <td width='120px'>No. Kunjungan</td><td>: {$value.no_rujukan}</td>
-                            </tr>
-                            <tr>
-                              <td width='120px'>No. Kartu</td><td>: {$value.no_peserta}</td>
-                            </tr>
-                            <tr>
-                              <td width='120px'><a href="{?=url([ADMIN,'vedika','sitb',$value.status_lanjut,$value.no_rkm_medis])?}" data-toggle="modal" data-target="#statusModal">No. SITB</a></td>
-                              <td>: {$value.no_sitb}
-                             </td>
-                            </tr>
-                            <tr>
-                              <td width="120px">
-                                <a href="{?=url([ADMIN,'vedika','ubahdiagnosa',$value.status_lanjut,convertNorawat($value.no_rawat)])?}"
-                                   class="js-ubah-medis"
-                                   data-toggle="modal"
-                                   data-target="#statusModal"
-                                   data-status="{$value.status_lanjut}"
-                                   data-no-rawat="{?=convertNorawat($value.no_rawat)?}"
-                                   data-summary-target="#diagnosa-{$value.nomor}">
-                                  Dx. Utama
-                                </a>
-                              </td>
-                            
-                              <td>: <br>
-                                <span id="diagnosa-{$value.nomor}">
-                                  {loop: $value.diagnosa_pasienx as $data}
-                                  - ({$data.kd_penyakit})-{$data.nm_penyakit}<br>
-                                  {/loop}
-                                </span>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td width="120px">
-                                <a href="{?=url([ADMIN,'vedika','ubahprosedur',$value.status_lanjut,convertNorawat($value.no_rawat)])?}"
-                                   class="js-ubah-medis"
-                                   data-toggle="modal"
-                                   data-target="#statusModal"
-                                   data-status="{$value.status_lanjut}"
-                                   data-no-rawat="{?=convertNorawat($value.no_rawat)?}"
-                                   data-summary-target="#prosedur-{$value.nomor}">
-                                  Pros. Utama
-                                </a>
-                              </td>
-                            
-                              <td>: <br>
-                                <span id="prosedur-{$value.nomor}">
-                                  {loop: $value.prosedur_pasienx as $data}
-                                  - ({$data.kode})-{$data.deskripsi_pendek}<br>
-                                  {/loop}
-                                </span>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                        <td>
-                          <table>
-                            {loop: $value.berkas_digital as $data}
-                            <tr>
-                              <td>- <a href="{?=url(WEBAPPS_URL)?}/berkasrawat/{$data.lokasi_file}" class="gallery">{$data.nama}</a> 
-                              </td>
-                            </tr>
-                            {/loop}
-                            
-                          </table>
-                        </td>
-      								</tr>
-      								{/loop}
-      								{else}
-      								<tr><td colspan="5" class="text-center">Data pasien tidak ditemukan</td></tr>
-      							{/if}
-      							</tbody>
-      						</table>
-      					</div>
-                {$vedika.pagination}
-            </div>
-        </div>
-    </div>
+                              </span>
+                              {if: $value.only_im_diagnosis}<span class="label label-warning"><i class="fa fa-exclamation-triangle"></i> Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG</span>{/if}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td width="120px">
+                              <a href="{?=url([ADMIN,'vedika','ubahprosedur',$value.status_lanjut,convertNorawat($value.no_rawat)])?}"
+                                 class="js-ubah-medis"
+                                 data-toggle="modal"
+                                 data-target="#statusModal"
+                                 data-status="{$value.status_lanjut}"
+                                 data-no-rawat="{?=convertNorawat($value.no_rawat)?}"
+                                 data-summary-target="#prosedur-{$value.nomor}">
+                                Pros. Utama
+                              </a>
+                            </td>
+                          
+                            <td>: <br>
+                              <span id="prosedur-{$value.nomor}">
+                                {loop: $value.prosedur_pasienx as $data}
+                                - ({$data.kode})-{$data.deskripsi_pendek}<br>
+                                {/loop}
+                              </span>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td>
+                        <table>
+                          {loop: $value.berkas_digital as $data}
+                          <tr>
+                            <td>- <a href="{?=url(WEBAPPS_URL)?}/berkasrawat/{$data.lokasi_file}" class="gallery">{$data.nama}</a> 
+                            </td>
+                          </tr>
+                          {/loop}
+                          
+                        </table>
+                      </td>
+                    </tr>
+                    {/loop}
+                    {else}
+                    <tr><td colspan="5" class="text-center">Data pasien tidak ditemukan</td></tr>
+                  {/if}
+                  </tbody>
+                </table>
+              </div>
+              {$vedika.pagination}
+          </div>
+      </div>
+  </div>
 </article>
 <!-- Modal -->
 <div class="modal fade" id="moduleModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" style="width:1120px;" role="document">
-        <div class="modal-content">
-            ...
-        </div>
-    </div>
-</div>
-<div class="modal fade" id="statusModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            ...
-        </div>
-    </div>
-</div>
-<div class="modal fade" id="inacbgsModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-lg" role="document">
+  <div class="modal-dialog modal-lg" style="width:1120px;" role="document">
       <div class="modal-content">
           ...
       </div>
   </div>
 </div>
-<div class="modal fade" id="riwayatModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-full" role="document">
-        <div class="modal-content">
-            ...
-        </div>
+<div class="modal fade" id="statusModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+      <div class="modal-content">
+          ...
+      </div>
+  </div>
+</div>
+<div class="modal fade" id="inacbgsModal" tabindex="-1" role="dialog">
+<div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+        ...
     </div>
 </div>
+</div>
+<div class="modal fade" id="riwayatModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-full" role="document">
+      <div class="modal-content">
+          ...
+      </div>
+  </div>
+</div>
 <script type="text/javascript">
+var no_rawat = $(this).attr("data-no_rawat");
+$('input:text[name=no_rawat]').val(no_rawat);
+</script>
+<script>
+$( function() {
+  $('.tanggal').datetimepicker({
+    defaultDate: '{?=date('Y-m-d')?}',
+    format: 'YYYY-MM-DD',
+    locale: 'id'
+  });
+} );
+$('.gallery').lightbox();
+</script>
+
+<script type="text/javascript">
+$("#display").on("click",".bridging_inacbgs", function(event){
+  var baseURL = mlite.url + '/' + mlite.admin;
+  event.preventDefault();
   var no_rawat = $(this).attr("data-no_rawat");
+  var loadURL =  baseURL + '/vedika/bridginggrouper/' + no_rawat + '?t=' + mlite.token;
+
+  var modal = $('#inacbgsModal');
+  var modalContent = $('#inacbgsModal .modal-content');
+
+  modal.off('show.bs.modal');
+  modal.on('show.bs.modal', function () {
+      modalContent.load(loadURL);
+  }).modal();
+  return false;
+});
+</script>
+
+<script>
+$('a[href="#layanan_obat"]').click(function(event){
+  var baseURL = mlite.url + '/' + mlite.admin;
+  event.preventDefault();
+
+  var no_rawat = $(this).attr("data-no_rawat");
+  var no_rkm_medis = $(this).attr("data-no_rkm_medis");
+  var nm_pasien = $(this).attr("data-nm_pasien");
+
   $('input:text[name=no_rawat]').val(no_rawat);
-</script>
-<script>
-  $( function() {
-    $('.tanggal').datetimepicker({
-      defaultDate: '{?=date('Y-m-d')?}',
-      format: 'YYYY-MM-DD',
-      locale: 'id'
-    });
-  } );
-  $('.gallery').lightbox();
-</script>
+  $('input:text[name=no_rkm_medis]').val(no_rkm_medis);
+  $('input:text[name=nm_pasien]').val(nm_pasien);
+  $("#display").hide();
 
-<script type="text/javascript">
-  $("#display").on("click",".bridging_inacbgs", function(event){
-    var baseURL = mlite.url + '/' + mlite.admin;
-    event.preventDefault();
-    var no_rawat = $(this).attr("data-no_rawat");
-    var loadURL =  baseURL + '/vedika/bridginggrouper/' + no_rawat + '?t=' + mlite.token;
-
-    var modal = $('#inacbgsModal');
-    var modalContent = $('#inacbgsModal .modal-content');
-
-    modal.off('show.bs.modal');
-    modal.on('show.bs.modal', function () {
-        modalContent.load(loadURL);
-    }).modal();
-    return false;
+  var url = baseURL + '/vedika/rincian?t=' + mlite.token;
+  $.post(url, {no_rawat : no_rawat,
+  }, function(data) {
+    // tampilkan data
+    $("#form_rincian").show();
+    $("#form").hide();
+    $("#notif").hide();
+    $("#form_soap").hide();
+    $("#form_kontrol").hide();
+    $("#rincian").html(data).show();
   });
+});
 </script>
 
 <script>
-  $('a[href="#layanan_obat"]').click(function(event){
-    var baseURL = mlite.url + '/' + mlite.admin;
-    event.preventDefault();
+(function () {
+  var modalContext = null;
 
-    var no_rawat = $(this).attr("data-no_rawat");
-    var no_rkm_medis = $(this).attr("data-no_rkm_medis");
-    var nm_pasien = $(this).attr("data-nm_pasien");
+  // Simpan konteks langsung dari klik. Pada loader modal mLITE,
+  // event show.bs.modal tidak selalu membawa relatedTarget.
+  $(document)
+    .off('click.ringkasanMedis', '.js-ubah-medis')
+    .on('click.ringkasanMedis', '.js-ubah-medis', function () {
+      var $trigger = $(this);
 
-    $('input:text[name=no_rawat]').val(no_rawat);
-    $('input:text[name=no_rkm_medis]').val(no_rkm_medis);
-    $('input:text[name=nm_pasien]').val(nm_pasien);
-    $("#display").hide();
-
-    var url = baseURL + '/vedika/rincian?t=' + mlite.token;
-    $.post(url, {no_rawat : no_rawat,
-    }, function(data) {
-      // tampilkan data
-      $("#form_rincian").show();
-      $("#form").hide();
-      $("#notif").hide();
-      $("#form_soap").hide();
-      $("#form_kontrol").hide();
-      $("#rincian").html(data).show();
+      modalContext = {
+        noRawat: $trigger.attr('data-no-rawat'),
+        status: $trigger.attr('data-status'),
+        target: $trigger.attr('data-summary-target')
+      };
     });
-  });
-</script>
 
-<script>
-  (function () {
-    var modalContext = null;
-
-    // Simpan konteks langsung dari klik. Pada loader modal mLITE,
-    // event show.bs.modal tidak selalu membawa relatedTarget.
-    $(document)
-      .off('click.ringkasanMedis', '.js-ubah-medis')
-      .on('click.ringkasanMedis', '.js-ubah-medis', function () {
-        var $trigger = $(this);
-
-        modalContext = {
-          noRawat: $trigger.attr('data-no-rawat'),
-          status: $trigger.attr('data-status'),
-          target: $trigger.attr('data-summary-target')
-        };
-      });
-
-    $(document)
-      .off('hidden.bs.modal.ringkasanMedis', '#statusModal')
-      .on('hidden.bs.modal.ringkasanMedis', '#statusModal', function () {
-        if (!modalContext) {
-          return;
-        }
-  
-        var context = modalContext;
-        modalContext = null;
-  
-        var baseURL = mlite.url + '/' + mlite.admin;
-        var url = baseURL
-          + '/vedika/ringkasanmedis/'
-          + encodeURIComponent(context.status)
-          + '/'
-          + encodeURIComponent(context.noRawat)
-          + '?t='
-          + encodeURIComponent(mlite.token);
-  
-        $.getJSON(url, function (response) {
-          var $diagnosa = $(context.target.indexOf('#diagnosa-') === 0
-            ? context.target
-            : context.target.replace('#prosedur-', '#diagnosa-'));
-  
-          var $prosedur = $(context.target.indexOf('#prosedur-') === 0
-            ? context.target
-            : context.target.replace('#diagnosa-', '#prosedur-'));
-  
-          renderRingkasan($diagnosa, response.diagnosa);
-          renderRingkasan($prosedur, response.prosedur);
-        }).fail(function () {
-          console.error('Gagal memperbarui ringkasan diagnosa/prosedur.');
-        });
-      });
-  
-    function renderRingkasan($target, items) {
-      $target.empty();
-  
-      if (!items || items.length === 0) {
-        $target.text('-');
+  $(document)
+    .off('hidden.bs.modal.ringkasanMedis', '#statusModal')
+    .on('hidden.bs.modal.ringkasanMedis', '#statusModal', function () {
+      if (!modalContext) {
         return;
       }
-  
-      $.each(items, function (_, item) {
-        $target.append(
-          document.createTextNode('- (' + item.kode + ')-' + item.nama),
-          $('<br>')
-        );
+
+      var context = modalContext;
+      modalContext = null;
+
+      var baseURL = mlite.url + '/' + mlite.admin;
+      var url = baseURL
+        + '/vedika/ringkasanmedis/'
+        + encodeURIComponent(context.status)
+        + '/'
+        + encodeURIComponent(context.noRawat)
+        + '?t='
+        + encodeURIComponent(mlite.token);
+
+      $.getJSON(url, function (response) {
+        var $diagnosa = $(context.target.indexOf('#diagnosa-') === 0
+          ? context.target
+          : context.target.replace('#prosedur-', '#diagnosa-'));
+
+        var $prosedur = $(context.target.indexOf('#prosedur-') === 0
+          ? context.target
+          : context.target.replace('#diagnosa-', '#prosedur-'));
+
+        renderRingkasan($diagnosa, response.diagnosa);
+        renderRingkasan($prosedur, response.prosedur);
+      }).fail(function () {
+        console.error('Gagal memperbarui ringkasan diagnosa/prosedur.');
       });
+    });
+
+  function renderRingkasan($target, items) {
+    $target.empty();
+
+    if (!items || items.length === 0) {
+      $target.text('-');
+      return;
     }
-  })();
-  </script>
+
+    $.each(items, function (_, item) {
+      $target.append(
+        document.createTextNode('- (' + item.kode + ')-' + item.nama),
+        $('<br>')
+      );
+    });
+  }
+})();
+</script>

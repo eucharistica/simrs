@@ -1,0 +1,161 @@
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal">&times;</button>
+  <h4 class="modal-title">Ubah Prosedur Terverifikasi</h4>
+</div>
+<style>
+  #vedikaProcedureEditor .vce-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  #vedikaProcedureEditor .vce-toolbar label { margin:0 3px 0 0; }
+  #vedikaProcedureEditor .vce-toolbar .form-control { display:inline-block; width:auto; min-width:54px; }
+  #vedikaProcedureEditor .vce-position { min-width:105px !important; }
+  #vedikaProcedureEditor .vce-code { min-width:58px; }
+  #vedikaProcedureEditor .vce-search { position:relative; }
+  #vedikaProcedureEditor .vce-results { position:absolute; z-index:1060; left:0; right:0; top:100%; max-height:240px; overflow:auto; }
+  #vedikaProcedureEditor .table-responsive { margin-top:14px; border:0; }
+  #vedikaProcedureEditor .vp-row-volume { width:60px; }
+</style>
+<div class="modal-body" id="vedikaProcedureEditor">
+  <div class="panel panel-default">
+    <div class="panel-body">
+      <div class="vce-toolbar">
+        <label>Prosedur (ICD 9)</label>
+        <span id="vpCodeLabel" class="btn btn-default vce-code">kode</span>
+        <select id="vpPriority" class="form-control vce-position" title="Posisi prosedur">
+          <option value="1"{if: !$has_procedure} selected{/if}>Utama</option>
+          <option value="2"{if: $has_procedure} selected{/if}>Sekunder</option>
+        </select>
+        <label for="vpVolume">Volume</label>
+        <select id="vpVolume" class="form-control" title="Volume prosedur">{loop: $volumes}<option>{$value}</option>{/loop}</select>
+      </div>
+      <div class="vce-search">
+        <div class="input-group">
+          <input id="vpSearch" class="form-control" autocomplete="off" placeholder="Ketik kode atau nama prosedur">
+          <input id="vpCode" type="hidden">
+          <span class="input-group-btn">
+            <button id="vpSave" class="btn btn-primary" title="Simpan prosedur" disabled><i class="fa fa-plus"></i></button>
+          </span>
+        </div>
+        <div id="vpResults" class="list-group vce-results"></div>
+      </div>
+      <small class="help-block no-margin">Volume 2-9 dikirim ke IDRG sebagai multiplicity, misalnya <strong>99.04+3</strong>.</small>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-condensed table-striped">
+      <thead><tr><th>Kode</th><th>Prosedur</th><th>Status</th><th>Prioritas</th><th>Volume</th><th></th></tr></thead>
+      <tbody>
+        {loop: $prosedur_pasien}
+        <tr class="{if: !$value.valid_grouping}danger{/if}">
+          <td><strong>{$value.kode}</strong></td>
+          <td>{$value.deskripsi_panjang}</td>
+          <td>{if: $value.valid_grouping}<span class="label label-success">Valid grouping</span>{else}<span class="label label-danger">Tidak valid grouping</span>{/if}</td>
+          <td>{$value.prioritas} {if: $value.prioritas == '1'}(Utama){else}(Sekunder){/if}</td>
+          <td><input type="number" min="1" max="9" step="1" value="{$value.volume}" class="form-control input-sm vp-row-volume" data-code="{$value.kode}"{if: !$value.valid_grouping} disabled{/if}></td>
+          <td style="white-space:nowrap">
+            {if: $value.valid_grouping && $value.prioritas != '1'}<button class="btn btn-xs btn-success vp-set-primary" data-code="{$value.kode}" title="Jadikan prosedur utama"><i class="fa fa-arrow-up"></i> Utama</button>{/if}
+            <button class="btn btn-xs btn-warning vp-substitute" data-code="{$value.kode}" data-priority="{$value.prioritas}" title="Substitusi prosedur"><i class="fa fa-exchange"></i></button>
+            <button class="btn btn-xs btn-danger vp-delete" data-code="{$value.kode}" data-priority="{$value.prioritas}" title="Hapus prosedur"><i class="fa fa-trash"></i></button>
+          </td>
+        </tr>
+        {/loop}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="modal-footer"><button class="btn btn-primary" data-dismiss="modal">Tutup</button></div>
+<script>
+(function(){
+  var root=$('#vedikaProcedureEditor'), timer=null, substituteCode='';
+  function esc(v){return $('<div>').text(v==null?'':v).html();}
+  function reload(){
+    $.ajax({url:'{$reload_url}',method:'GET',cache:false}).done(function(html){
+      if(/name=["'](?:username|password)["']|id=["']login/i.test(html)){bootbox.alert('Modal gagal dimuat ulang. Silakan tutup lalu buka kembali.');return;}
+      $('#statusModal .modal-content').html(html);
+    }).fail(function(){bootbox.alert('Modal gagal dimuat ulang. Data sudah diproses; silakan tutup lalu buka kembali.');});
+  }
+  root.on('input','#vpSearch',function(){
+    $('#vpCode').val('');
+    $('#vpCodeLabel').text(substituteCode?'ganti '+substituteCode:'kode');
+    $('#vpSave').prop('disabled',true);
+    clearTimeout(timer);
+    var q=this.value;
+    if(q.length<2){$('#vpResults').empty();return;}
+    timer=setTimeout(function(){
+      $.post(mlite.url+'/'+mlite.admin+'/vedika/cariprosedurklaim?t='+mlite.token,{query:q},function(res){
+        var box=$('#vpResults').empty();
+        $.each(res.items||[],function(_,x){
+          var valid=String(x.validcode)==='1';
+          $('<button type="button">').addClass('list-group-item '+(!valid?'list-group-item-danger disabled':''))
+            .prop('disabled',!valid)
+            .html('<strong>'+esc(x.kode)+'</strong> - '+esc(x.nama)+' <span class="label '+(valid?'label-success':'label-danger')+'">'+(valid?'Valid grouping':'Tidak valid grouping')+'</span>')
+            .data('item',x).appendTo(box);
+        });
+      },'json');
+    },250);
+  });
+  root.on('click','#vpResults button:not(:disabled)',function(){
+    var x=$(this).data('item');
+    $('#vpCode').val(x.kode);
+    $('#vpCodeLabel').text(substituteCode?substituteCode+' > '+x.kode:x.kode);
+    $('#vpSearch').val(x.nama);
+    $('#vpResults').empty();
+    $('#vpSave').prop('disabled',false);
+  });
+  root.on('click','#vpSave',function(){
+    var replacing=substituteCode!=='';
+    var endpoint=replacing?'substitusiprosedurklaim':'simpanprosedurklaim';
+    var payload=replacing
+      ? {no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode_lama:substituteCode,kode_baru:$('#vpCode').val()}
+      : {no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$('#vpCode').val(),prioritas:$('#vpPriority').val(),volume:$('#vpVolume').val()};
+    $.post(mlite.url+'/'+mlite.admin+'/vedika/'+endpoint+'?t='+mlite.token,payload,function(res){
+      if(!res.ok){bootbox.alert(res.message);return;}
+      reload();
+    },'json');
+  });
+  root.on('click','.vp-substitute',function(){
+    substituteCode=String($(this).data('code'));
+    var substitutePriority=parseInt($(this).data('priority'),10)||0;
+    $('#vpPriority').val(substitutePriority===1?'1':'2').prop('disabled',true).attr('title','Prioritas mengikuti prosedur yang disubstitusi');
+    $('#vpCode').val('');
+    $('#vpCodeLabel').text('ganti '+substituteCode);
+    $('#vpSearch').val('').attr('placeholder','Cari prosedur pengganti untuk '+substituteCode).focus();
+    $('#vpResults').empty();
+    $('#vpSave').prop('disabled',true);
+  });
+  root.on('click','.vp-set-primary',function(){
+    var code=$(this).data('code');
+    $.post(mlite.url+'/'+mlite.admin+'/vedika/jadikanprosedurutama?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:code},function(res){
+      if(!res.ok){bootbox.alert(res.message);return;}
+      reload();
+    },'json');
+  });
+  root.on('change','.vp-row-volume',function(){
+    $.post(mlite.url+'/'+mlite.admin+'/vedika/simpanvolumeprosedur?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$(this).data('code'),volume:this.value},function(res){if(!res.ok)bootbox.alert(res.message);},'json');
+  });
+  root.on('click','.vp-delete',function(){
+    var b=$(this);
+    bootbox.confirm('Hapus prosedur '+b.data('code')+'?',function(ok){
+      if(!ok)return;
+      $.post(mlite.url+'/'+mlite.admin+'/vedika/hapusprosedur?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:b.data('code'),prioritas:b.data('priority')},function(res){
+        if(!res.ok){bootbox.alert(res.message);return;}
+        reload();
+      },'json');
+    });
+  });
+})();
+</script>
+<script>
+(function(){
+  var noRawatRingkasan='{?=convertNoRawat($no_rawat)?}', statusRingkasan='{$status_lanjut}', refreshDimulai=false;
+  $('#statusModal').off('hidden.bs.modal.vedikaRingkasan').on('hidden.bs.modal.vedikaRingkasan',function(){
+    if(refreshDimulai)return;
+    refreshDimulai=true;
+    $.ajax({url:mlite.url+'/'+mlite.admin+'/vedika/ringkasanmedis/'+encodeURIComponent(statusRingkasan)+'/'+encodeURIComponent(noRawatRingkasan.replace(/\//g,''))+'?t='+encodeURIComponent(mlite.token),method:'GET',dataType:'json',cache:false}).done(function(response){
+      $('.js-ubah-medis').filter(function(){return $(this).attr('data-no-rawat')===noRawatRingkasan;}).each(function(){
+        var target=$(this).attr('data-summary-target'),items=target.indexOf('#diagnosa-')===0?response.diagnosa:response.prosedur,box=$(target).empty();
+        if(!items||!items.length){box.text('-');return;}
+        $.each(items,function(_,item){box.append(document.createTextNode('- ('+item.kode+')-'+item.nama),$('<br>'));});
+      });
+    });
+  });
+})();
+</script>

@@ -950,8 +950,11 @@
         }
 
         var s = res.steps;
+        var siapkanKlaim = s.edit_klaim === false
+          ? false
+          : (s.edit_klaim === true ? true : s.buat_klaim);
         var output = [
-          renderStep('Buat Klaim', s.buat_klaim),
+          renderStep('Buat/Edit Klaim', siapkanKlaim),
           renderStep('Set Klaim', s.set_klaim),
           renderStep('Grouper IDRG', s.grouper_idrg),
           renderStep('Final IDRG', s.final_idrg),
