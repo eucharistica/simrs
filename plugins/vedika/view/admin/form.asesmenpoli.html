@@ -1,0 +1,165 @@
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <h4 class="modal-title">Asesmen Medis IGD</h4>
+</div>
+<div class="modal-body">
+  <article class="row" id="asesmen">
+      <div class="col-md-4">
+        <div class="form-group">
+            <label>Nomor Rawat</label>
+            <input type="text" name="no_rawat_asesmen" class="form-control" placeholder="Nomor Rawat" required value="{$reg_periksa.no_rawat}" readonly />
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
+            <label>Nama Pasien</label>
+            <input type="text" name="nama_pasien" class="form-control" placeholder="Nama Pasien" value="{$reg_periksa.nm_pasien}" readonly />
+        </div>
+      </div>
+      
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>Nyeri</label>
+            <input type="text" name="nyeri" class="form-control" required value="{$triase.nyeri}" />
+        </div>
+      </div>
+      
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>Suhu</label>
+            <input name="suhu" id="suhu" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.suhu)?}{else}{/if}"/>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>Tensi</label>
+            <input name="td" id="td" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.td)?}{else}{/if}"/>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>Nadi</label>
+            <input name="nadi" id="nadi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.nadi)?}{else}{/if}"/>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>RR</label>
+            <input name="rr" id="rr" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.rr)?}{else}{/if}"/>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>SPO</label>
+            <input name="spo" id="spo" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.spo)?}{else}{/if}"/>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+            <label>GCS</label>
+            <input name="gcs" id="gcs" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.gcs)?}{else}{/if}"/>
+        </div>
+      </div>
+      
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Riwayat Penyakit Sekarang</label>
+            <textarea name="rps" id="rps" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.rps)?}{else}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Pemeriksaan Fisik</label>
+            <textarea name="ket_fisik" id="ket_fisik" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.ket_fisik)?}{else}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Diagnosis</label>
+            <textarea name="diagnosis" id="diagnosis" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.diagnosis)?}{else}{?=isset_or($diagnosa.nm_penyakit)?}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+        <div class="form-group">
+            <label>Tatalaksana</label>
+            <textarea name="tata" id="tata" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.tata)?}{else}{/if}</textarea>
+        </div>
+      </div>
+      <div class="col-md-12">
+      {if: $asesmen}
+      <button type="button" class="btn btn-success" id="simpan_asesmen">Simpan</button>
+      {else}
+      <button type="button" class="btn btn-success disabled" id="asesmen_baru">Simpan</button>
+      {/if}
+      </div>
+  </article>
+
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
+</div>
+<script type="text/javascript">
+  $('select').selectator();
+</script>
+<script type="text/javascript">
+$(document).off("click.asesmen", "#simpan_asesmen").on("click.asesmen", "#simpan_asesmen", function(event){
+  event.preventDefault();
+
+  var baseURL = mlite.url + '/' + mlite.admin;
+
+  var no_rawat = $('input[name=no_rawat_asesmen]').val();
+  var rps = $('textarea[name=rps]').val();
+  var ket_fisik = $('textarea[name=ket_fisik]').val();
+  var diagnosis = $('textarea[name=diagnosis]').val();
+  var tata = $('textarea[name=tata]').val();
+  var suhu = $('input[name=suhu]').val();
+  var td = $('input[name=td]').val();
+  var nadi = $('input[name=nadi]').val();
+  var rr = $('input[name=rr]').val();
+  var spo = $('input[name=spo]').val();
+  var gcs = $('input[name=gcs]').val();
+  var nyeri = $('input[name=nyeri]').val();
+
+  var url = baseURL + '/vedika/saveasesmenigd?t=' + mlite.token;
+
+  $.post(url, {
+    no_rawat: no_rawat,
+    rps: rps,
+    ket_fisik: ket_fisik,
+    diagnosis: diagnosis,
+    tata: tata,
+    suhu: suhu,
+    td: td,
+    nadi: nadi,
+    rr: rr,
+    spo: spo,
+    gcs: gcs,
+    nyeri: nyeri
+  })
+    .done(function(data) {
+    
+      $('#statusModal').one('hidden.bs.modal', function () {
+    
+        showToast('Data asesmen medis nomor rawat ' + no_rawat + ' telah disimpan!!');
+    
+        setTimeout(function() {
+          window.location.reload();
+        }, 1800);
+    
+      });
+    
+      $('#statusModal').modal('hide');
+    
+    })
+    .fail(function() {
+      showToast('Gagal menyimpan data asesmen medis!', 'error');
+    });
+});
+
+
+$(document).off("click.asesmenBaru", "#asesmen_baru").on("click.asesmenBaru", "#asesmen_baru", function(event){
+  event.preventDefault();
+
+  alert('Input asesmen medis baru hanya boleh dari aplikasi SIMRS');
+});
+</script>

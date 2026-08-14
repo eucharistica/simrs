@@ -88,7 +88,7 @@
               <div class="table-responsive no-margin">
                 <table class="table table-striped no-margin">
                   <thead>
-                    <tr>
+            <tr>                       
                       <th>No</th>
                       <th>Aksi dan Proses</th>
                       <th>Data Pasien</th>
@@ -99,8 +99,8 @@
                   </thead>
                   <tbody>
                   {if: !empty($vedika.list)}
-                    {loop: $vedika.list}
-                    <tr>                       
+              {loop: $vedika.list}
+              <tr class="vedika-patient-row" data-no-rawat="{?=convertNorawat($value.no_rawat)?}">                       
                       <td>{$value.nomor}</td>
                       <td>
                         {if: $value.no_sep == ''}
@@ -120,27 +120,46 @@
                           <i class="fa fa-send"></i> Vclaim
                         </a>                          
                         {if: $value.no_sep == ''}
-                          <button class="btn btn-warning btn-xs">
+                          <button class="btn btn-warning btn-xs js-status-button">
                   <i class="fa fa-check"></i> Status
                 </button><br>
+                        {elseif: $value.coding_blocked}
+                          <button type="button" class="btn btn-default btn-xs js-status-button" disabled title="Perbaiki diagnosis/prosedur yang tidak valid terlebih dahulu">
+                            <i class="fa fa-lock"></i> Status
+                          </button>
                         {else}
-                          <a href="{$value.setstatusURL}" class="btn btn-success btn-xs" data-toggle="modal" data-target="#statusModal">
+                          <a href="{$value.setstatusURL}" class="btn btn-success btn-xs js-status-button" data-toggle="modal" data-target="#statusModal">
                   <i class="fa fa-check"></i> Status
                 </a>
+                          {if: $value.grouping_error}
+                            <a href="{$value.inacbgsURL}" class="btn btn-warning btn-xs js-grouping-manual" data-toggle="modal" data-target="#inacbgsModal" title="Uji grouping langsung di E-Klaim">
+                              <i class="fa fa-cogs"></i> Grouping INACBGS
+                            </a>
+                          {/if}
                           {loop: $value.status_pengajuan as $data}
                           <span class="badge badge-{if: $data.status == 'Setuju'}success{elseif: $data.status == 'Perbaiki'}error{else}warning{/if}">{$data.status}</span>
                           {/loop}
                           <br><br>
                         {/if}
+                        {if: $value.coding_blocked}
+                          <div class="alert alert-warning js-coding-lock-alert" style="margin:8px 0 4px; padding:7px; min-width:230px;">
+                            <i class="fa fa-lock"></i> <strong>Status dikunci.</strong><br>
+                            {if: $value.diagnosis_validation_message}{$value.diagnosis_validation_message}<br>{/if}
+                            {if: $value.procedure_validation_message}{$value.procedure_validation_message}{/if}
+                          </div>
+                        {/if}
                         {if: $value.grouping_error}
                           <div class="alert alert-danger" style="margin:8px 0 4px; padding:7px; min-width:230px;">
                             <i class="fa fa-exclamation-triangle"></i>
-                            <strong>Perbaiki, dan kirim ulang</strong><br>
+                            <strong>Perbaiki koding dan kirim ulang</strong><br>
                             {$value.grouping_error.message}
                           </div>
                         {/if}
                         {if: $value.kd_poli == 'IGDK'}
                           <a href="{?=url([ADMIN,'vedika','asesmenigd',$value.status_lanjut,convertNorawat($value.no_rawat)])?}" class="btn btn-xs btn-danger" data-toggle="modal" data-target="#statusModal">Asesmen Medis</a>
+                        {/if}
+                        {if: $value.kd_poli != 'IGDK'}
+                          <a href="{?=url([ADMIN,'vedika','asesmenpoli',$value.status_lanjut,convertNorawat($value.no_rawat)])?}" class="btn btn-xs btn-danger" data-toggle="modal" data-target="#statusModal">SOAP Poli</a>
                         {/if}
                       </td>
               <td> 
@@ -236,7 +255,8 @@
                                 - ({$data.kd_penyakit})-{$data.nm_penyakit}<br>
                                 {/loop}
                               </span>
-                              {if: $value.only_im_diagnosis}<span class="label label-warning"><i class="fa fa-exclamation-triangle"></i> Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG</span>{/if}
+                              <span class="js-only-im-warning">{if: $value.only_im_diagnosis}<span class="label label-warning"><i class="fa fa-exclamation-triangle"></i> Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG</span>{/if}</span>
+                              <span class="js-diagnosis-validation">{if: $value.diagnosis_validation_message}<span class="label label-danger"><i class="fa fa-ban"></i> {$value.diagnosis_validation_message}</span>{/if}</span>
                             </td>
                           </tr>
                           <tr>
@@ -258,6 +278,7 @@
                                 - ({$data.kode})-{$data.deskripsi_pendek}<br>
                                 {/loop}
                               </span>
+                              <span class="js-procedure-validation">{if: $value.procedure_validation_message}<span class="label label-danger"><i class="fa fa-ban"></i> {$value.procedure_validation_message}</span>{/if}</span>
                             </td>
                           </tr>
                         </table>
@@ -302,7 +323,7 @@
   </div>
 </div>
 <div class="modal fade" id="inacbgsModal" tabindex="-1" role="dialog">
-<div class="modal-dialog modal-lg" role="document">
+<div class="modal-dialog modal-lg" style="width:95%; max-width:1400px;" role="document">
     <div class="modal-content">
         ...
     </div>
@@ -395,6 +416,12 @@ $('a[href="#layanan_obat"]').click(function(event){
     });
 
   $(document)
+    .off('vedika:coding-updated.ringkasanMedis')
+    .on('vedika:coding-updated.ringkasanMedis', function (_, context, response) {
+      applyCodingState(context, response);
+    });
+
+  $(document)
     .off('hidden.bs.modal.ringkasanMedis', '#statusModal')
     .on('hidden.bs.modal.ringkasanMedis', '#statusModal', function () {
       if (!modalContext) {
@@ -413,21 +440,80 @@ $('a[href="#layanan_obat"]').click(function(event){
         + '?t='
         + encodeURIComponent(mlite.token);
 
-      $.getJSON(url, function (response) {
-        var $diagnosa = $(context.target.indexOf('#diagnosa-') === 0
-          ? context.target
-          : context.target.replace('#prosedur-', '#diagnosa-'));
-
-        var $prosedur = $(context.target.indexOf('#prosedur-') === 0
-          ? context.target
-          : context.target.replace('#diagnosa-', '#prosedur-'));
-
-        renderRingkasan($diagnosa, response.diagnosa);
-        renderRingkasan($prosedur, response.prosedur);
+      $.ajax({
+        url: url,
+        method: 'GET',
+        dataType: 'json',
+        cache: false
+      }).done(function (response) {
+        applyCodingState(context, response);
       }).fail(function () {
         console.error('Gagal memperbarui ringkasan diagnosa/prosedur.');
       });
     });
+
+  function applyCodingState(context, response) {
+    if (!context || !response) return;
+    var $currentTrigger = $('.js-ubah-medis').filter(function () {
+      return $(this).attr('data-no-rawat') === context.noRawat;
+    }).first();
+    var $currentRow = $currentTrigger.closest('tr.vedika-patient-row');
+    if (!$currentRow.length) return;
+
+    $currentRow.find('.js-ubah-medis').each(function () {
+      var target = $(this).attr('data-summary-target');
+      if (!target) return;
+      renderRingkasan($(target), target.indexOf('#diagnosa-') === 0
+        ? response.diagnosa
+        : response.prosedur);
+    });
+    applyCodingValidation(context, response);
+  }
+
+  function applyCodingValidation(context, response) {
+    var $currentTrigger = $('.js-ubah-medis').filter(function () {
+      return $(this).attr('data-no-rawat') === context.noRawat;
+    }).first();
+    var $currentRow = $currentTrigger.closest('tr.vedika-patient-row');
+    if (!$currentRow.length || !response.validation) return;
+
+    var validation = response.validation;
+    var $status = $currentRow.find('.js-status-button').first();
+    if (validation.blocked) {
+      $status.replaceWith('<button type="button" class="btn btn-default btn-xs js-status-button" disabled title="Perbaiki diagnosis/prosedur yang tidak valid terlebih dahulu"><i class="fa fa-lock"></i> Status</button>');
+    } else if (response.setstatus_url) {
+      var $link = $('<a>', {
+        href: response.setstatus_url,
+        'class': 'btn btn-success btn-xs js-status-button',
+        'data-toggle': 'modal',
+        'data-target': '#statusModal'
+      }).append('<i class="fa fa-check"></i> Status');
+      $status.replaceWith($link);
+    }
+
+    $currentRow.find('.js-coding-lock-alert').remove();
+    if (validation.blocked) {
+      var messages = [];
+      if (validation.diagnosis_message) messages.push(validation.diagnosis_message);
+      if (validation.procedure_message) messages.push(validation.procedure_message);
+      $('<div class="alert alert-warning js-coding-lock-alert" style="margin:8px 0 4px;padding:7px;min-width:230px;"><i class="fa fa-lock"></i> <strong>Status dikunci.</strong><br></div>')
+        .append(document.createTextNode(messages.join('; ')))
+        .insertAfter($currentRow.find('.js-status-button').first());
+    }
+
+    renderValidation($currentRow.find('.js-diagnosis-validation'), validation.diagnosis_message, 'danger');
+    renderValidation($currentRow.find('.js-procedure-validation'), validation.procedure_message, 'danger');
+    renderValidation($currentRow.find('.js-only-im-warning'), validation.only_im ? 'Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG' : '', 'warning');
+  }
+
+  function renderValidation($target, message, type) {
+    $target.empty();
+    if (!message) return;
+    $('<span>', {'class': 'label label-' + type})
+      .append($('<i>', {'class': type === 'warning' ? 'fa fa-exclamation-triangle' : 'fa fa-ban'}))
+      .append(document.createTextNode(' ' + message))
+      .appendTo($target);
+  }
 
   function renderRingkasan($target, items) {
     $target.empty();
