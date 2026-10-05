@@ -16,6 +16,7 @@ class Admin extends AdminModule
             'Paket Operasi' => 'paketoperasi',
             'Obat Operasi' => 'obatoperasi',
             'Laporan Operasi' => 'laporanoperasi',
+            'Laporan Bedah' => 'laporanbedah',
         ];
     }
 
@@ -27,6 +28,7 @@ class Admin extends AdminModule
         ['name' => 'Paket Operasi', 'url' => url([ADMIN, 'operasi', 'paketoperasi']), 'icon' => 'cubes', 'desc' => 'Data paket operasi'],
         ['name' => 'Obat Operasi', 'url' => url([ADMIN, 'operasi', 'obatoperasi']), 'icon' => 'cubes', 'desc' => 'Data obat operasi'],
         ['name' => 'Laporan Operasi', 'url' => url([ADMIN, 'operasi', 'laporanoperasi']), 'icon' => 'cubes', 'desc' => 'Data laporan operasi'],
+        ['name' => 'Laporan Bedah', 'url' => url([ADMIN, 'operasi', 'laporanbedah']), 'icon' => 'heartbeat', 'desc' => 'Laporan pembedahan lengkap'],
       ];
       return $this->draw('manage.html', ['sub_modules' => $sub_modules]);
     }
@@ -570,6 +572,81 @@ class Admin extends AdminModule
         $this->notify('failure', 'Laporan operasi telah dihapus');
       }
       redirect(url([ADMIN, 'operasi', 'laporanoperasi']));
+    }
+
+    /**
+     * Form dan daftar Laporan Bedah (tabel laporan_bedah, kompatibel Khanza).
+     */
+    public function getLaporanBedah()
+    {
+      $this->core->addCSS(url('assets/css/dataTables.bootstrap.min.css'));
+      $this->core->addJS(url('assets/jscripts/jquery.dataTables.min.js'));
+      $this->core->addJS(url('assets/jscripts/dataTables.bootstrap.min.js'));
+      $this->core->addCSS(url('assets/css/bootstrap-datetimepicker.css'));
+      $this->core->addJS(url('assets/jscripts/moment-with-locales.js'));
+      $this->core->addJS(url('assets/jscripts/bootstrap-datetimepicker.js'));
+
+      $start = isset($_GET['start']) && $_GET['start'] !== '' ? $_GET['start'] : date('Y-m-d', strtotime('-1 month'));
+      $end = isset($_GET['end']) && $_GET['end'] !== '' ? $_GET['end'] : date('Y-m-d');
+      $search = trim((string) ($_GET['s'] ?? ''));
+      $sql = "SELECT lb.*, rp.no_rkm_medis, p.nm_pasien, p.tgl_lahir,
+                IF(p.jk='L','Laki-Laki','Perempuan') AS jk,
+                d.nm_dokter
+              FROM laporan_bedah lb
+              INNER JOIN reg_periksa rp ON rp.no_rawat=lb.no_rawat
+              INNER JOIN pasien p ON p.no_rkm_medis=rp.no_rkm_medis
+              LEFT JOIN dokter d ON d.kd_dokter=lb.operator
+              WHERE lb.mulai BETWEEN ? AND ?";
+      $params = [$start . ' 00:00:00', $end . ' 23:59:59'];
+      if ($search !== '') {
+        $sql .= " AND (lb.no_rawat LIKE ? OR rp.no_rkm_medis LIKE ? OR p.nm_pasien LIKE ? OR lb.operator LIKE ? OR d.nm_dokter LIKE ?)";
+        $like = '%' . $search . '%';
+        array_push($params, $like, $like, $like, $like, $like);
+      }
+      $sql .= ' ORDER BY lb.mulai DESC';
+      $stmt = $this->db()->pdo()->prepare($sql);
+      $stmt->execute($params);
+      $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+      $dokter = $this->db('dokter')->where('status', '1')->asc('nm_dokter')->toArray();
+      return $this->draw('laporanbedah.html', [
+        'laporanbedah' => $rows,
+        'dokter' => $dokter,
+        'start' => $start,
+        'end' => $end,
+        'search' => $search
+      ]);
+    }
+
+    public function postSaveLaporanBedah()
+    {
+      $action = isset($_POST['aksi']) ? $_POST['aksi'] : 'simpan';
+      $noRawat = trim((string) ($_POST['no_rawat'] ?? ''));
+      $allowed = ['no_rawat','mulai','selesai','jenis_anestesi','jenis_pembedahan',
+        'diagnosa_preop','diagnosa_postop','jaringan','komplikasi','implan',
+        'no_implan','tindakan_bedah','laporan_bedah','operator'];
+      $data = [];
+      foreach ($allowed as $field) {
+        $data[$field] = trim((string) ($_POST[$field] ?? ''));
+      }
+
+      if ($noRawat === '') {
+        $this->notify('failure', 'Nomor rawat wajib diisi');
+      } elseif ($action === 'hapus') {
+        $this->db('laporan_bedah')->where('no_rawat', $noRawat)->delete();
+        $this->notify('success', 'Laporan bedah berhasil dihapus');
+      } else {
+        $exists = $this->db('laporan_bedah')->where('no_rawat', $noRawat)->oneArray();
+        if ($exists) {
+          unset($data['no_rawat']);
+          $this->db('laporan_bedah')->where('no_rawat', $noRawat)->save($data);
+          $this->notify('success', 'Laporan bedah berhasil diperbarui');
+        } else {
+          $this->db('laporan_bedah')->save($data);
+          $this->notify('success', 'Laporan bedah berhasil disimpan');
+        }
+      }
+      redirect(url([ADMIN, 'operasi', 'laporanbedah']));
     }
 
     public function getJavascript()

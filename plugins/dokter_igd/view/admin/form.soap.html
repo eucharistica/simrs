@@ -134,6 +134,9 @@
           <button type="button" name="button" class="btn btn-danger" id="buka_icd10dan9"><i class="fa fa-download"></i><span class="hidden-xs"> ICD 10 & 9</span></button>
           <button type="button" name="button" class="btn btn-info" id="eresep"><i class="fa fa-medkit"></i><span class="hidden-xs"> E-Resep</span></button>
           <button type="button" name="button" class="btn btn-info" id="buka_riwayat"><i class="fa fa-file-o"></i><span class="hidden-xs"> Riwayat</span></button>
+          <button type="button" name="button" class="btn btn-warning" id="buka_triase_igd"><i class="fa fa-ambulance"></i><span class="hidden-xs"> Triase IGD</span></button>
+          <button type="button" name="button" class="btn btn-primary" id="buka_asesmen_medis_igd"><i class="fa fa-stethoscope"></i><span class="hidden-xs"> Asesmen Medis IGD</span></button>
+          <button type="button" name="button" class="btn btn-info" id="permintaan_lab_soap"><i class="fa fa-flask"></i><span class="hidden-xs"> Permintaan Lab/Rad</span></button>
           <button type="button" name="button" class="btn btn-success" id="selesai_soap"><i class="fa fa-check"></i><span class="hidden-xs"> Selesai</span></button>
         </div>
       </div>
@@ -217,6 +220,73 @@
       </div>
     </div>
   </div>
+</div>
+<div class="modal fade" id="permintaanLabRadModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document"><div class="modal-content">
+    <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button><h4 class="modal-title"><i class="fa fa-flask"></i> Permintaan Laboratorium / Radiologi</h4></div>
+    <div class="modal-body">
+      <div class="alert alert-info" id="permintaanLabRadPasien"></div>
+      <div class="row">
+        <div class="col-md-6"><div class="form-group"><label>Cari Laboratorium</label><input type="text" class="form-control" id="modalLaboratorium" placeholder="Ketik nama pemeriksaan"><div id="modalLaboratoriumList" class="list-group"></div></div></div>
+        <div class="col-md-6"><div class="form-group"><label>Cari Radiologi</label><input type="text" class="form-control" id="modalRadiologi" placeholder="Ketik nama pemeriksaan"><div id="modalRadiologiList" class="list-group"></div></div></div>
+      </div>
+      <div class="panel panel-default"><div class="panel-heading"><strong>Pemeriksaan yang dipilih</strong></div><div class="panel-body" id="modalPemeriksaanDipilih"><div class="text-muted">Belum ada pemeriksaan yang dipilih.</div></div></div>
+      <div class="form-group"><label>Informasi Tambahan</label><textarea id="modalInformasi" class="form-control" rows="2"></textarea></div>
+      <div class="form-group"><label>Diagnosa Klinis</label><input type="text" id="modalDiagnosa" class="form-control"></div>
+      <button type="button" class="btn btn-primary" id="modalSimpanPermintaan"><i class="fa fa-save"></i> Simpan Permintaan</button>
+      <hr><h4>Permintaan yang sudah tersimpan</h4><div id="modalPermintaanTersimpan"><div class="text-muted">Memuat...</div></div>
+    </div>
+  </div></div>
+</div>
+<div class="modal fade" id="triaseIgdModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document"><div class="modal-content">
+    <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button><h4 class="modal-title"><i class="fa fa-ambulance"></i> Triase IGD</h4></div>
+    <div class="modal-body">
+      <div class="alert alert-info" id="triaseIgdPasien"></div>
+      <input type="hidden" id="triaseNoRawat">
+      <div class="form-group"><label>Tanggal &amp; Jam Triase</label><input type="datetime-local" class="form-control" id="triaseDatetime"></div>
+      <div class="form-group"><label>Jenis Triase</label><select class="form-control" id="triaseJenis"><option value="primer">Primer</option><option value="sekunder">Sekunder</option></select></div>
+      <div class="row">
+        <div class="col-md-4"><label>Cara Masuk</label><select class="form-control" id="triaseCaraMasuk"><option value="Jalan">Jalan</option><option value="Brankar">Brankar</option><option value="Kursi Roda">Kursi Roda</option><option value="Digendong">Digendong</option></select></div>
+        <div class="col-md-4"><label>Transportasi</label><select class="form-control" id="triaseTransportasi"><option value="AGD">AGD</option><option value="Sendiri" selected>Sendiri</option><option value="Swasta">Swasta</option></select></div>
+        <div class="col-md-4"><label>Emergency</label><select class="form-control" id="triaseEmergency"><option value="True Emergency" selected>True Emergency</option><option value="False Emergency">False Emergency</option></select></div>
+      </div>
+      <div class="row m-t-md">
+        <div class="col-md-4"><label>Tekanan Darah</label><input class="form-control" id="triaseTensi"></div>
+        <div class="col-md-2"><label>Nadi</label><input class="form-control" id="triaseNadi"></div>
+        <div class="col-md-2"><label>Respirasi</label><input class="form-control" id="triaseRespirasi"></div>
+        <div class="col-md-2"><label>Suhu</label><input class="form-control" id="triaseSuhu"></div>
+        <div class="col-md-2"><label>SpO2</label><input class="form-control" id="triaseSaturasi"></div>
+      </div>
+      <div class="row m-t-md"><div class="col-md-3"><label>Berat Badan</label><input class="form-control" id="triaseBb"></div><div class="col-md-3"><label>Nyeri</label><input class="form-control" id="triaseNyeri"></div><div class="col-md-6"><label>Macam Kasus</label><select class="form-control" id="triaseKasus"><option value="001">Trauma</option><option value="002" selected>Non Trauma</option><option value="003">EKG Asytole (Quick Look)</option><option value="004">Kebidanan</option></select></div></div>
+      <div class="form-group m-t-md"><label>Alasan Kedatangan</label><select class="form-control" id="triaseAlasan"><option value="-">-</option><option value="Datang Sendiri">Datang Sendiri</option><option value="Polisi">Polisi</option><option value="Rujukan">Rujukan</option></select></div>
+      <div class="form-group"><label>Keterangan Kedatangan</label><textarea class="form-control" id="triaseKeterangan" rows="2"></textarea></div>
+      <hr>
+      <div id="triasePrimerFields"><div class="form-group"><label>Keluhan Utama</label><textarea class="form-control" id="triaseKeluhan" rows="2"></textarea></div><div class="form-group"><label>Kebutuhan Khusus</label><select class="form-control" id="triaseKebutuhan"><option value="-">-</option><option value="UPPA">UPPA</option><option value="Airborne">Airborne</option><option value="Dekontaminan">Dekontaminan</option></select></div></div>
+      <div id="triaseSekunderFields" class="hidden"><div class="form-group"><label>Anamnesa Singkat</label><textarea class="form-control" id="triaseAnamnesa" rows="2"></textarea></div></div>
+      <div class="form-group"><label>Catatan</label><textarea class="form-control" id="triaseCatatan" rows="2"></textarea></div>
+      <div class="form-group"><label>Plan / Keputusan</label><div id="triasePlanPrimer"><label class="radio-inline"><input type="radio" name="triase_plan" value="Ruang Resusitasi"> Ruang Resusitasi</label><label class="radio-inline"><input type="radio" name="triase_plan" value="Ruang Kritis"> Ruang Kritis</label></div><div id="triasePlanSekunder" class="hidden"><label class="radio-inline"><input type="radio" name="triase_plan" value="Zona Kuning"> Zona Kuning</label><label class="radio-inline"><input type="radio" name="triase_plan" value="Zona Hijau"> Zona Hijau</label></div></div>
+      <div class="panel panel-default"><div class="panel-heading"><strong>Pemeriksaan Triase</strong> <small>(pilih semua yang sesuai)</small></div><div class="panel-body"><div id="triaseSkalaTabsContainer"></div><div id="triaseSkalaContainer"><div class="text-muted">Memuat master pemeriksaan...</div></div></div></div>
+      <button type="button" class="btn btn-warning" id="simpanTriaseIgd"><i class="fa fa-save"></i> Simpan Triase</button>
+      <div class="m-t-md" id="triaseStatus"></div>
+    </div>
+  </div></div>
+</div>
+<div class="modal fade" id="asesmenMedisIgdModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document"><div class="modal-content">
+    <div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button><h4 class="modal-title"><i class="fa fa-stethoscope"></i> Asesmen Awal Medis IGD</h4></div>
+    <div class="modal-body">
+      <div class="alert alert-info" id="asesmenIgdPasien"></div><input type="hidden" id="asesmenIgdNoRawat">
+      <div class="row"><div class="col-md-4"><label>Anamnesis</label><select class="form-control" id="asesmenAnamnesis"><option>Autoanamnesis</option><option>Alloanamnesis</option></select></div><div class="col-md-4"><label>Hubungan</label><input class="form-control" id="asesmenHubungan"></div><div class="col-md-4"><label>Keadaan Umum</label><select class="form-control" id="asesmenKeadaan"><option>Sehat</option><option>Sakit Ringan</option><option>Sakit Sedang</option><option>Sakit Berat</option></select></div></div>
+      <div class="row m-t-md"><div class="col-md-2"><label>Kesadaran</label><select class="form-control" id="asesmenKesadaran"><option>CM</option><option>Apatis</option><option>Somnolen</option><option>Sopor</option><option>Koma</option></select></div><div class="col-md-1"><label>GCS</label><input class="form-control" id="asesmenGcs"></div><div class="col-md-2"><label>TD</label><input class="form-control" id="asesmenTd"></div><div class="col-md-2"><label>Nadi</label><input class="form-control" id="asesmenNadi"></div><div class="col-md-1"><label>RR</label><input class="form-control" id="asesmenRr"></div><div class="col-md-1"><label>Suhu</label><input class="form-control" id="asesmenSuhu"></div><div class="col-md-1"><label>SpO2</label><input class="form-control" id="asesmenSpo"></div><div class="col-md-1"><label>BB</label><input class="form-control" id="asesmenBb"></div><div class="col-md-1"><label>TB</label><input class="form-control" id="asesmenTb"></div></div>
+      <hr><h5>Riwayat</h5><div class="row"><div class="col-md-6"><label>Keluhan Utama</label><textarea class="form-control" id="asesmenKeluhan" rows="2"></textarea></div><div class="col-md-6"><label>Riwayat Penyakit Sekarang</label><textarea class="form-control" id="asesmenRps" rows="2"></textarea></div></div><div class="row m-t-md"><div class="col-md-4"><label>RPD</label><textarea class="form-control" id="asesmenRpd" rows="2"></textarea></div><div class="col-md-4"><label>RPK</label><textarea class="form-control" id="asesmenRpk" rows="2"></textarea></div><div class="col-md-4"><label>RPO / Alergi</label><textarea class="form-control" id="asesmenRpoAlergi" rows="2"></textarea></div></div>
+      <hr><h5>Pemeriksaan Fisik</h5><div class="row" id="asesmenFisikFields"></div><div class="form-group m-t-md"><label>Keterangan Pemeriksaan Fisik</label><textarea class="form-control" id="asesmenKetFisik" rows="2"></textarea></div>
+      <hr><h5>Status Lokalis</h5><button type="button" class="btn btn-info btn-sm" id="toggleMarkingIgd" title="Tampilkan atau sembunyikan gambar marking lokalis"><i class="fa fa-eye"></i> Tampilkan Marking Lokalis</button><div id="asesmenIgdCanvasWrap" class="text-center m-t-sm" style="display:none"><canvas id="asesmenIgdCanvas" data-master-src="{?=url('assets/img/master-marking/marking_lokalis.png')?}" style="max-width:100%;border:1px solid #ddd;cursor:crosshair;touch-action:none"></canvas></div><div class="row m-t-sm"><div class="col-sm-3"><label for="asesmenRingSize">Ukuran lingkaran</label><select class="form-control input-sm" id="asesmenRingSize" title="Ukuran lingkaran untuk klik sekali"><option value="10">Kecil</option><option value="15" selected>Sedang</option><option value="22">Besar</option></select></div><div class="col-sm-3"><label for="asesmenBrushSize">Ketebalan brush</label><select class="form-control input-sm" id="asesmenBrushSize" title="Ketebalan garis untuk marking bebas"><option value="3">Tipis</option><option value="6" selected>Sedang</option><option value="10">Tebal</option></select></div><div class="col-sm-6"><small class="text-muted">Klik sekali untuk lingkaran merah; tekan dan geser untuk marking bebas.</small><br><button type="button" class="btn btn-danger btn-sm m-t-xs" id="hapusMarkingIgd" title="Kembalikan gambar marking ke kondisi awal">Hapus Marking</button></div></div><textarea class="form-control m-t-sm" id="asesmenKetLokalis" rows="2" placeholder="Keterangan status lokalis"></textarea>
+      <hr><div class="row"><div class="col-md-4"><label>Laboratorium</label><textarea class="form-control" id="asesmenLab" rows="2"></textarea></div><div class="col-md-4"><label>Radiologi</label><textarea class="form-control" id="asesmenRad" rows="2"></textarea></div><div class="col-md-4"><label>Penunjang Lainnya</label><textarea class="form-control" id="asesmenPenunjang" rows="2"></textarea></div></div>
+      <div class="form-group m-t-md"><label>Diagnosis / Asesmen</label><textarea class="form-control" id="asesmenDiagnosis" rows="2"></textarea></div><div class="row"><div class="col-md-6"><label>Tatalaksana</label><textarea class="form-control" id="asesmenTata" rows="2"></textarea></div><div class="col-md-6"><label>Edukasi</label><textarea class="form-control" id="asesmenEdukasi" rows="2"></textarea></div></div>
+      <button type="button" class="btn btn-primary m-t-md" id="simpanAsesmenMedisIgd"><i class="fa fa-save"></i> Simpan Asesmen</button><div class="m-t-md" id="asesmenIgdStatus"></div>
+    </div>
+  </div></div>
 </div>
 <div class="modal fade" id="resumeModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-full" role="document">

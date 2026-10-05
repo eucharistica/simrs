@@ -22,6 +22,15 @@
           <input type="text" name="no_rawat" class="form-control" placeholder="Nomor Rawat" required readonly value="{$set_status.no_rawat}" />
         </div>
       </div>
+      <div class="col-md-4">
+        <div class="checkbox" style="margin-top:0;margin-bottom:14px;">
+          <label>
+            <input type="checkbox" name="bypass_grouping" value="1">
+            <strong>Bypass grouping</strong>
+          </label>
+          <div class="js-bypass-dc-status" style="display:none;margin:7px 0 0 20px;padding:6px 9px;"></div>
+        </div>
+      </div>
       {if: $jenis}
       <div class="col-md-4">
         <div class="form-group">
@@ -49,6 +58,7 @@
           </select>
         </div>
       </div>
+      
       <div class="hidden col-md-12">
         <div class="form-group">
           <label>Catatan dan Umpan Balik</label>
@@ -94,6 +104,58 @@
   <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
 </div>
 <script type="text/javascript">
+var vedikaBypassCheckSerial = 0;
+
+$(document)
+  .off("change.statusVedikaBypass", "#form_status_vedika [name='bypass_grouping']")
+  .on("change.statusVedikaBypass", "#form_status_vedika [name='bypass_grouping']", function(){
+    var checkbox = $(this);
+    var form = checkbox.closest('form');
+    var info = form.find('.js-bypass-dc-status');
+    var tombol = form.find('button[type="submit"]');
+    var serial = ++vedikaBypassCheckSerial;
+
+    if (!checkbox.prop('checked')) {
+      form.data('dc-checking', false);
+      info.hide().removeClass('alert-success alert-info alert-warning alert-danger').empty();
+      tombol.prop('disabled', false).html('Simpan');
+      return;
+    }
+
+    form.data('dc-checking', true);
+    tombol.prop('disabled', true);
+    info
+      .show()
+      .removeClass('alert-success alert-warning alert-danger')
+      .addClass('alert alert-info')
+      .html('<i class="fa fa-spinner fa-spin"></i> Memeriksa status klaim ke E-Klaim...');
+
+    $.post(
+      mlite.url + '/' + mlite.admin + '/vedika/cekstatusdcbypass?t=' + mlite.token,
+      {nosep: form.find('[name="nosep"]').val()},
+      function(res){
+        if (serial !== vedikaBypassCheckSerial || !checkbox.prop('checked')) return;
+        info.removeClass('alert-info alert-success alert-warning alert-danger');
+        if (!res || !res.ok) {
+          info.addClass('alert-danger').html('<i class="fa fa-exclamation-triangle"></i> ' + $('<div>').text((res && res.message) || 'Status Data Center gagal diperiksa').html());
+        } else if (res.sent) {
+          info.addClass('alert-success').html('<i class="fa fa-check"></i> ' + $('<div>').text(res.message).html());
+        } else {
+          info.addClass('alert-warning').html('<i class="fa fa-info-circle"></i> ' + $('<div>').text(res.message).html());
+        }
+      },
+      'json'
+    ).fail(function(){
+      if (serial !== vedikaBypassCheckSerial || !checkbox.prop('checked')) return;
+      info.removeClass('alert-info alert-success alert-warning').addClass('alert-danger')
+        .html('<i class="fa fa-exclamation-triangle"></i> Gagal menghubungi pemeriksaan status Data Center.');
+    }).always(function(){
+      if (serial !== vedikaBypassCheckSerial || !checkbox.prop('checked')) return;
+      form.data('dc-checking', false);
+      tombol.prop('disabled', false).html('Simpan');
+    });
+  });
+
 $(document)
   .off("submit.statusVedika", "#form_status_vedika")
   .on("submit.statusVedika", "#form_status_vedika", function(event){
@@ -101,6 +163,10 @@ $(document)
 
     var baseURL = mlite.url + '/' + mlite.admin;
     var form = $(this);
+    if (form.data('dc-checking')) {
+      showToast('Tunggu pemeriksaan status Data Center selesai', 'warning');
+      return;
+    }
     var jenis = form.find('[name="jenis"]').val();
     var jnspelayanan = form.find('[name="jnspelayanan"]').val();
     var rawatInap = (jenis === '1' || jnspelayanan === '1');

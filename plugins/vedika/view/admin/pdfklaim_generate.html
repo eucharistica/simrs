@@ -275,7 +275,8 @@
 
 <body class="container" id="content">
   <!-- SEP BPJS -->
-  {if: isset($print_sep.bpjs_prb.prb) && $print_sep.bpjs_prb.prb}
+  {if: isset($print_sep.bridging_sep.no_sep) && $print_sep.bridging_sep.no_sep}
+  <div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_SEP_START</div>
   <br><br><br>
   <fieldset style="page-break-before:always;">    
     <table class="sep" width="1000" style="font-size:11px;padding:0;border:0px solid #fff;" border="0" padding="0">
@@ -284,7 +285,7 @@
           <table border="0" padding="0">
             <tr>
               <td width="420">
-                <img src="{?=url()?}/plugins/vclaim/img/bpjslogo.png" alt="Image" width="400" height="68">
+                <img src="var:bpjs_logo" alt="BPJS Kesehatan" width="400" height="68">
               </td>
               <td width="580">
                 <div style="font-size:28px;text-align:center;font-weight:bold;">
@@ -303,7 +304,11 @@
           <table>
             <tr>
               <td width="420">
-                            <b><u>PRB : {$print_sep.bpjs_prb.prb}</u></b>
+                {if: isset($print_sep.bpjs_prb.prb) && $print_sep.bpjs_prb.prb}
+                  <b><u>PRB : {$print_sep.bpjs_prb.prb}</u></b>
+                {else}
+                  &nbsp;
+                {/if}
               </td>
             </tr>
           </table>
@@ -586,9 +591,11 @@
       </tr>
     </table>
   </fieldset>
+  <div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_SEP</div>
   {/if}
   
   <!-- BILLING -->
+  <div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_BILLING_START</div>
   {if: $pengaturan_billing != 'mlite'}
   <br><br><br>
   <fieldset style="page-break-before:always;">
@@ -1331,11 +1338,13 @@
     </fieldset>
     {/if}
   {/if}
+  <div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_BILLING</div>
 
 
   <!-- =======================================================
        RESUME MEDIS PASIEN - REFACTOR mPDF
        ======================================================= -->
+  <div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_RESUME_START</div>
   <pagebreak />
   <div class="resume-document">
 
@@ -1631,16 +1640,16 @@
               <td class="resume-center">{$value.tinggi}</td>
               <td class="resume-center">{$value.berat}</td>
               <td class="resume-center">{$value.gcs}</td>
-              <td>{$value.kesadaran}</td>
+              <td>{?=htmlspecialchars(isset($value.kesadaran) ? (string)$value.kesadaran : '', ENT_QUOTES, 'UTF-8')?}</td>
             </tr>
           </tbody>
         </table>
-        <div class="resume-long-row"><div class="resume-long-label">Subjek</div>{$value.keluhan}</div>
-        <div class="resume-long-row"><div class="resume-long-label">Objek</div>{$value.pemeriksaan}</div>
-        <div class="resume-long-row"><div class="resume-long-label">Asesmen</div>{$value.penilaian}</div>
-        <div class="resume-long-row"><div class="resume-long-label">Plan</div>{$value.rtl}</div>
-        <div class="resume-long-row"><div class="resume-long-label">Instruksi</div>{$value.instruksi}</div>
-        <div class="resume-long-row"><div class="resume-long-label">Alergi</div>{$value.alergi}</div>
+        <div class="resume-long-row"><div class="resume-long-label">Subjek</div>{?=nl2br(htmlspecialchars(isset($value.keluhan) ? (string)$value.keluhan : '', ENT_QUOTES, 'UTF-8'))?}</div>
+        <div class="resume-long-row"><div class="resume-long-label">Objek</div>{?=nl2br(htmlspecialchars(isset($value.pemeriksaan) ? (string)$value.pemeriksaan : '', ENT_QUOTES, 'UTF-8'))?}</div>
+        <div class="resume-long-row"><div class="resume-long-label">Asesmen</div>{?=nl2br(htmlspecialchars(isset($value.penilaian) ? (string)$value.penilaian : '', ENT_QUOTES, 'UTF-8'))?}</div>
+        <div class="resume-long-row"><div class="resume-long-label">Plan</div>{?=nl2br(htmlspecialchars(isset($value.rtl) ? (string)$value.rtl : '', ENT_QUOTES, 'UTF-8'))?}</div>
+        <div class="resume-long-row"><div class="resume-long-label">Instruksi</div>{?=nl2br(htmlspecialchars(isset($value.instruksi) ? (string)$value.instruksi : '', ENT_QUOTES, 'UTF-8'))?}</div>
+        <div class="resume-long-row"><div class="resume-long-label">Alergi</div>{?=nl2br(htmlspecialchars(isset($value.alergi) ? (string)$value.alergi : '', ENT_QUOTES, 'UTF-8'))?}</div>
       </div>
       {/loop}
     {/if}
@@ -1807,32 +1816,55 @@
         </thead>
         <tbody>
           <tr>
-            <td>{$triase_igd.macam_kasus}</td>
-            <td>{$triase_igd.emergency}</td>
-            <td>{if: $asesmen_medis_igd.kesadaran == 'CM'}Compos Mentis{else}{$asesmen_medis_igd.kesadaran}{/if}</td>
-            <td>{if: $triase_igd.cara_masuk == 'Jalan'}Jalan Kaki{else}{$triase_igd.cara_masuk}{/if}</td>
-            <td>{if: $triase_igd.alat_transportasi == 'Sendiri'}Kendaraan Pribadi{elseif: $triase_igd.alat_transportasi == 'Swasta'}Kendaraan Umum{else}{$triase_igd.alat_transportasi}{/if}</td>
-            <td>{$triase_igd.alasan_kedatangan}</td>
-            <td>{$triase_igd.keterangan_kedatangan}</td>
+            <td>{?=htmlspecialchars(isset($triase_igd.macam_kasus) ? (string)$triase_igd.macam_kasus : '', ENT_QUOTES, 'UTF-8')?}</td>
+            <td>{?=htmlspecialchars(isset($triase_igd.emergency) ? (string)$triase_igd.emergency : '', ENT_QUOTES, 'UTF-8')?}</td>
+            <td>{if: $asesmen_medis_igd.kesadaran == 'CM'}Compos Mentis{else}{?=htmlspecialchars(isset($asesmen_medis_igd.kesadaran) ? (string)$asesmen_medis_igd.kesadaran : '', ENT_QUOTES, 'UTF-8')?}{/if}</td>
+            <td>{if: $triase_igd.cara_masuk == 'Jalan'}Jalan Kaki{else}{?=htmlspecialchars(isset($triase_igd.cara_masuk) ? (string)$triase_igd.cara_masuk : '', ENT_QUOTES, 'UTF-8')?}{/if}</td>
+            <td>{if: $triase_igd.alat_transportasi == 'Sendiri'}Kendaraan Pribadi{elseif: $triase_igd.alat_transportasi == 'Swasta'}Kendaraan Umum{else}{?=htmlspecialchars(isset($triase_igd.alat_transportasi) ? (string)$triase_igd.alat_transportasi : '', ENT_QUOTES, 'UTF-8')?}{/if}</td>
+            <td>{?=nl2br(htmlspecialchars(isset($triase_igd.alasan_kedatangan) ? (string)$triase_igd.alasan_kedatangan : '', ENT_QUOTES, 'UTF-8'))?}</td>
+            <td>{?=nl2br(htmlspecialchars(isset($triase_igd.keterangan_kedatangan) ? (string)$triase_igd.keterangan_kedatangan : '', ENT_QUOTES, 'UTF-8'))?}</td>
           </tr>
         </tbody>
       </table>
 
       {if: $triaseprimer}
-      <div class="resume-long-row"><div class="resume-long-label">Plan Triase Primer</div>{$triaseprimer.plan}</div>
-      <div class="resume-long-row"><div class="resume-long-label">Catatan Triase Primer</div>{$triaseprimer.catatan}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Plan Triase Primer</div>{?=nl2br(htmlspecialchars(isset($triaseprimer.plan) ? (string)$triaseprimer.plan : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Catatan Triase Primer</div>{?=nl2br(htmlspecialchars(isset($triaseprimer.catatan) ? (string)$triaseprimer.catatan : '', ENT_QUOTES, 'UTF-8'))?}</div>
       {/if}
       {if: $triasesekunder}
-      <div class="resume-long-row"><div class="resume-long-label">Plan Triase Sekunder</div>{if: $triasesekunder.plan == 'Zona Hijau'}Zona Kuning{else}{$triasesekunder.plan}{/if}</div>
-      <div class="resume-long-row"><div class="resume-long-label">Catatan Triase Sekunder</div>{$triasesekunder.catatan}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Plan Triase Sekunder</div>{if: $triasesekunder.plan == 'Zona Hijau'}Zona Kuning{else}{?=nl2br(htmlspecialchars(isset($triasesekunder.plan) ? (string)$triasesekunder.plan : '', ENT_QUOTES, 'UTF-8'))?}{/if}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Catatan Triase Sekunder</div>{?=nl2br(htmlspecialchars(isset($triasesekunder.catatan) ? (string)$triasesekunder.catatan : '', ENT_QUOTES, 'UTF-8'))?}</div>
       {/if}
-      <div class="resume-long-row"><div class="resume-long-label">Subjek</div>{$asesmen_medis_igd.rps}</div>
-      <div class="resume-long-row"><div class="resume-long-label">Objek</div>{$asesmen_medis_igd.ket_fisik}</div>
-      <div class="resume-long-row"><div class="resume-long-label">Asesmen</div>{$asesmen_medis_igd.diagnosis}</div>
-      <div class="resume-long-row"><div class="resume-long-label">Plan</div>{$asesmen_medis_igd.tata}</div>
-      <div class="resume-long-row"><div class="resume-long-label">RPK</div>{$asesmen_medis_igd.rpk}</div>
-      <div class="resume-long-row"><div class="resume-long-label">RPO</div>{$asesmen_medis_igd.rpo}</div>
-      <div class="resume-long-row"><div class="resume-long-label">Alergi</div>{$asesmen_medis_igd.alergi}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Subjek</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.rps) ? (string)$asesmen_medis_igd.rps : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Objek</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.ket_fisik) ? (string)$asesmen_medis_igd.ket_fisik : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Asesmen</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.diagnosis) ? (string)$asesmen_medis_igd.diagnosis : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Plan</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.tata) ? (string)$asesmen_medis_igd.tata : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">RPK</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.rpk) ? (string)$asesmen_medis_igd.rpk : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">RPO</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.rpo) ? (string)$asesmen_medis_igd.rpo : '', ENT_QUOTES, 'UTF-8'))?}</div>
+      <div class="resume-long-row"><div class="resume-long-label">Alergi</div>{?=nl2br(htmlspecialchars(isset($asesmen_medis_igd.alergi) ? (string)$asesmen_medis_igd.alergi : '', ENT_QUOTES, 'UTF-8'))?}</div>
+    </div>
+    {/if}
+
+    {if: $reg_periksa.kd_poli == 'IGDK' && $catatan_observasi_igd}
+    <div class="resume-section">
+      <table class="resume-table resume-tiny" autosize="1">
+        <thead>
+          <tr><th colspan="11" class="resume-section-title">Catatan Observasi IGD</th></tr>
+          <tr>
+            <th>Tanggal Observasi</th><th>Jam Observasi</th><th>GCS</th><th>TD</th><th>HR</th><th>RR</th><th>Suhu</th><th>SpO2</th><th>Keluhan</th><th>Tatalaksana Lanjut</th><th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loop: $catatan_observasi_igd}
+          <tr>
+            <td>{$value.tgl_perawatan}</td><td>{$value.jam_rawat}</td><td>{$value.gcs}</td><td>{$value.td}</td><td>{$value.hr}</td><td>{$value.rr}</td><td>{$value.suhu}</td><td>{$value.spo2}</td>
+            <td>{?=nl2br(htmlspecialchars(isset($value.keluh) ? (string)$value.keluh : '', ENT_QUOTES, 'UTF-8'))?}</td>
+            <td>{?=nl2br(htmlspecialchars(isset($value.tll) ? (string)$value.tll : '', ENT_QUOTES, 'UTF-8'))?}</td>
+            <td>{?=nl2br(htmlspecialchars(isset($value.keterangan) ? (string)$value.keterangan : '', ENT_QUOTES, 'UTF-8'))?}</td>
+          </tr>
+          {/loop}
+        </tbody>
+      </table>
     </div>
     {/if}
 
@@ -2118,6 +2150,35 @@
     </div>
     {/if}
 
+    <!-- RESEP OBAT RAWAT JALAN -->
+    {if: $reg_periksa.status_lanjut == 'Ralan' && $pemberian_obat}
+    <div class="resume-section">
+      <table class="resume-table resume-small" autosize="1">
+        <thead>
+          <tr><th colspan="5" class="resume-section-title">Resep Obat</th></tr>
+          <tr>
+            <th style="width:18%;">Tanggal</th>
+            <th style="width:13%;">Kode</th>
+            <th style="width:37%;">Nama Obat</th>
+            <th style="width:12%;">Jumlah</th>
+            <th style="width:20%;">Aturan Pakai</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loop: $pemberian_obat}
+          <tr>
+            <td>{$value.tgl_perawatan} {$value.jam}</td>
+            <td>{$value.kode_brng}</td>
+            <td>{?=htmlspecialchars(isset($value.nama_brng) ? (string)$value.nama_brng : '', ENT_QUOTES, 'UTF-8')?}</td>
+            <td>{$value.jml}</td>
+            <td>{?=htmlspecialchars(isset($value.aturan_pakai) ? (string)$value.aturan_pakai : '', ENT_QUOTES, 'UTF-8')?}</td>
+          </tr>
+          {/loop}
+        </tbody>
+      </table>
+    </div>
+    {/if}
+
     <!-- RESEP PULANG -->
     {if: $resep_pulang}
     <div class="resume-section">
@@ -2137,9 +2198,9 @@
           <tr>
             <td>{$value.tgl_perawatan} {$value.jam}</td>
             <td>{$value.kode_brng}</td>
-            <td>{$value.nama_brng}</td>
+            <td>{?=htmlspecialchars(isset($value.nama_brng) ? (string)$value.nama_brng : '', ENT_QUOTES, 'UTF-8')?}</td>
             <td>{$value.jml_barang} {$value.kode_sat}</td>
-            <td>{$value.dosis}</td>
+            <td>{?=htmlspecialchars(isset($value.dosis) ? (string)$value.dosis : '', ENT_QUOTES, 'UTF-8')?}</td>
           </tr>
           {/loop}
         </tbody>
@@ -2174,7 +2235,7 @@
             <td class="resume-center">{$value.respirasi}</td>
             <td class="resume-center">{$value.berat}</td>
             <td class="resume-center">{$value.gcs}</td>
-            <td>{$value.kesadaran}</td>
+            <td>{?=htmlspecialchars(isset($value.kesadaran) ? (string)$value.kesadaran : '', ENT_QUOTES, 'UTF-8')?}</td>
           </tr>
           {/loop}
         </tbody>
@@ -2191,6 +2252,27 @@
         <div class="resume-cppt-line"><strong>Alergi:</strong> {$value.alergi}</div>
       </div>
       {/loop}
+    </div>
+    {/if}
+
+    {if: $reg_periksa.status_lanjut == 'Ranap' && $catatan_observasi_ranap}
+    <div class="resume-section">
+      <table class="resume-table resume-tiny" autosize="1">
+        <thead>
+          <tr><th colspan="10" class="resume-section-title">Catatan Observasi Rawat Inap</th></tr>
+          <tr>
+            <th>Tanggal Observasi</th><th>Jam Observasi</th><th>Hari Ke</th><th>GCS</th><th>TD</th><th>HR</th><th>RR</th><th>Suhu</th><th>SpO2</th><th>Keluhan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loop: $catatan_observasi_ranap}
+          <tr>
+            <td>{$value.tgl_perawatan}</td><td>{$value.jam_rawat}</td><td>{$value.hari_ke}</td><td>{$value.gcs}</td><td>{$value.td}</td><td>{$value.hr}</td><td>{$value.rr}</td><td>{$value.suhu}</td><td>{$value.spo2}</td>
+            <td>{?=nl2br(htmlspecialchars(isset($value.lainnya) ? (string)$value.lainnya : '', ENT_QUOTES, 'UTF-8'))?}</td>
+          </tr>
+          {/loop}
+        </tbody>
+      </table>
     </div>
     {/if}
 
@@ -2211,6 +2293,7 @@
     </table>
 
   </div>
+  <div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_RESUME</div>
 
   {if: $reg_periksa.kd_poli == 'U0021'}
   <br><br><br>     
@@ -2318,8 +2401,8 @@
   {/if}
   
   {if: $reg_periksa.kd_poli == 'U0045'}
-  <br><br><br>     
-  <fieldset style="page-break-before:always;">
+  <pagebreak />
+  <div class="vedika-extra-document" data-vedika-extra="KFR_U0045">
 
     <table  rules='rows' width="100%" style="font-size: 11px;font-family: verdana, sans-serif;">
         <tr>
@@ -2341,10 +2424,10 @@
           Website : {$settings.website}</p></td>
         <td align="right"><strong   style="font-size: 12px" ></strong>
           <p align="right" style="font-size: 15px;">
-          Nama Pasien : {$pasien.nm_pasien}<br>          
+          Nama Pasien : {?=htmlspecialchars(isset($pasien.nm_pasien) ? (string)$pasien.nm_pasien : '', ENT_QUOTES, 'UTF-8')?}<br>          
           No RM : {$pasien.no_rkm_medis}<br>
           No Rawat : {$reg_periksa.no_rawat}<br>
-          Alamat : {$pasien.alamat}<br></p>
+          Alamat : {?=htmlspecialchars(isset($pasien.alamat) ? (string)$pasien.alamat : '', ENT_QUOTES, 'UTF-8')?}<br></p>
         </td>
         </tr>
     </table>  
@@ -2355,7 +2438,7 @@
       </tr>  
       <tr>
         <td width="180px">Nama Pasien</td>
-        <td> : {$pasien.nm_pasien}</td>
+        <td> : {?=htmlspecialchars(isset($pasien.nm_pasien) ? (string)$pasien.nm_pasien : '', ENT_QUOTES, 'UTF-8')?}</td>
       </tr>
       <tr>
         <td>No Rekam Medis</td>
@@ -2371,45 +2454,45 @@
       </tr>
       <tr>
         <td>Alamat</td>
-        <td> : {$pasien.alamat}</td>
+        <td> : {?=htmlspecialchars(isset($pasien.alamat) ? (string)$pasien.alamat : '', ENT_QUOTES, 'UTF-8')?}</td>
       </tr> 
       <tr>
         <td colspan="2">&nbsp;</td>
       </tr>      
       <tr>
         <td><i><b>Subjective</b></i></td>
-        <td> : {$pemeriksaan_rehab.anamnesa}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.anamnesa) ? (string)$pemeriksaan_rehab.anamnesa : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
       <tr>
         <td><i><b>Objective</b></i></td>
-        <td> : {$pemeriksaan_rehab.pemeriksaanfisik}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.pemeriksaanfisik) ? (string)$pemeriksaan_rehab.pemeriksaanfisik : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
       <tr>
         <td><i><b>Assessment</b></i></td>
-        <td> : {$pemeriksaan_rehab.diagnosis}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.diagnosis) ? (string)$pemeriksaan_rehab.diagnosis : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
       <tr>
-        <td><i><b>Planning</b></i></td>
+        <td colspan="2"><i><b>Planning</b></i></td>
       </tr>
       <tr>
         <td>a. <i>Goal of Treatment</i></td>
-        <td> : {$pemeriksaan_rehab.tatalaksana}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.tatalaksana) ? (string)$pemeriksaan_rehab.tatalaksana : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
       <tr>
         <td>b. Tindakan / Program Rehabilitasi Medik</td>
-        <td> : {$pemeriksaan_rehab.pemeriksaanpenunjang}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.pemeriksaanpenunjang) ? (string)$pemeriksaan_rehab.pemeriksaanpenunjang : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
       <tr>
         <td>c. Edukasi</td>
-        <td> : {$pemeriksaan_rehab.anjuran}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.anjuran) ? (string)$pemeriksaan_rehab.anjuran : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
       <tr>
         <td>d. Frekuensi Kunjungan</td>
-        <td> : {$kunjungan.urut_kunjungan}</td>
+        <td> : {?=htmlspecialchars(isset($kunjungan.urut_kunjungan) ? (string)$kunjungan.urut_kunjungan : '', ENT_QUOTES, 'UTF-8')?}</td>
       </tr>
       <tr>
         <td><b>Rencana Tindak Lanjut</b></td>
-        <td> : {$pemeriksaan_rehab.evaluasi}</td>
+        <td> : {?=nl2br(htmlspecialchars(isset($pemeriksaan_rehab.evaluasi) ? (string)$pemeriksaan_rehab.evaluasi : '', ENT_QUOTES, 'UTF-8'))?}</td>
       </tr>
     </table>
     <!-- FOOTER TANDA TANGAN -->
@@ -2426,13 +2509,13 @@
           {/if}
     
           <br>
-          <b>{$nama_dokter_kfr}</b>
+          <b>{?=htmlspecialchars(isset($nama_dokter_kfr) ? (string)$nama_dokter_kfr : '', ENT_QUOTES, 'UTF-8')?}</b>
         </td>
       </tr>
     </table>
-  </fieldset>
+    <div style="font-size:1px;line-height:1px;color:#000000;height:1px;overflow:hidden;">VEDIKA_EXTRA_KFR_U0045_END</div>
+  </div>
   {/if}
-  
 
   {if: $rujuk_igd && $reg_periksa.status_lanjut == 'Ralan'}
   <br><br><br>     
@@ -3158,7 +3241,7 @@
             <table width="100%" border="0" cellpadding="0" cellspacing="0">
               <tr>
                 <td width="420">
-                  <img src="{?=url()?}/plugins/vclaim/img/bpjslogo.png" alt="BPJS" width="400" height="68">
+                  <img src="var:bpjs_logo" alt="BPJS Kesehatan" width="400" height="68">
                 </td>
                 <td width="580">
                   <div style="font-size:28px;text-align:center;font-weight:bold;">
@@ -3182,7 +3265,7 @@
                 <td width="380" align="left" style="text-align:left;">
                   No. {$print_spri.bridging_surat_pri_bpjs.no_surat}<br>
                   Tgl. {$print_spri.bridging_surat_pri_bpjs.tgl_surat}<br><br>
-                  <img src="{?=url()?}/api/barcode/?codetype=code39&size=60&text={$print_spri.bridging_surat_pri_bpjs.no_surat}" alt="" width="200">
+                  <barcode code="{$print_spri.bridging_surat_pri_bpjs.no_surat}" type="C39" size="0.8" />
                 </td>
               </tr>
             </table>
@@ -3300,7 +3383,8 @@
 
   <!-- Berkas Digital -->
   {if: $berkas_digital}
-  <fieldset style="page-break-before:always;">
+  <pagebreak />
+  <div class="vedika-extra-document" data-vedika-extra="BERKAS_DIGITAL">
     <table  rules='rows' width="100%" style="font-size: 11px;font-family: verdana, sans-serif;">
         <tr>
         <td colspan="12">
@@ -3339,7 +3423,8 @@
       </center>
         {/loop}
     </table>
-  </fieldset>
+    <div style="font-size:1px;line-height:1px;color:#000000;height:1px;overflow:hidden;">VEDIKA_EXTRA_BERKAS_DIGITAL_END</div>
+  </div>
   {/if}
 </body>
 </html>

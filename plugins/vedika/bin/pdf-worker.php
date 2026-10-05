@@ -49,14 +49,44 @@ $core = new Systems\Admin();
 $vedika = new Plugins\Vedika\Admin($core);
 $vedika->init();
 
-$options = getopt('', ['once', 'sleep::', 'max-jobs::']);
+$options = getopt('', ['once', 'sleep::', 'max-jobs::', 'job-timeout::']);
 $runOnce = array_key_exists('once', $options);
 $idleSleep = max(1, (int) (isset($options['sleep']) ? $options['sleep'] : 2));
 $maxJobs = max(0, (int) (isset($options['max-jobs']) ? $options['max-jobs'] : 100));
+$jobTimeout = max(60, (int) (isset($options['job-timeout']) ? $options['job-timeout'] : (getenv('MLITE_PDF_JOB_TIMEOUT') ?: 1200)));
 $processed = 0;
 $workerId = php_uname('n') . ':' . getmypid();
 $activeQueueCall = false;
+$stopRequested = false;
+$watchdogTriggered = false;
 $fatalMemoryReserve = str_repeat('R', 2 * 1024 * 1024);
+
+// Supervisor stop/restart mengirim SIGTERM. Tangkap sinyal agar job aktif
+// diselesaikan dulu, lalu worker keluar dengan rapi sebelum Supervisor start lagi.
+if (function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
+    pcntl_async_signals(true);
+    $signalHandler = function ($signal) use (&$stopRequested) {
+        $stopRequested = true;
+        fwrite(STDOUT, json_encode([
+            'time' => date('Y-m-d H:i:s'),
+            'status' => true,
+            'message' => 'Sinyal stop diterima; menyelesaikan job aktif sebelum keluar',
+            'signal' => $signal
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    };
+    pcntl_signal(SIGTERM, $signalHandler);
+    pcntl_signal(SIGINT, $signalHandler);
+
+    // Watchdog per job. Jika mPDF/HTTP/merge tidak kembali dalam batas waktu,
+    // lempar exception agar job dikembalikan ke queue dan worker keluar.
+    if (defined('SIGALRM')) {
+        pcntl_signal(SIGALRM, function () use (&$watchdogTriggered, &$stopRequested, $jobTimeout) {
+            $watchdogTriggered = true;
+            $stopRequested = true;
+            throw new RuntimeException('VEDIKA_WATCHDOG_TIMEOUT: proses PDF melebihi ' . $jobTimeout . ' detik');
+        });
+    }
+}
 
 register_shutdown_function(function () use (
     &$activeQueueCall,
@@ -96,17 +126,30 @@ register_shutdown_function(function () use (
 });
 
 do {
+    $watchdogTriggered = false;
     try {
         $activeQueueCall = true;
+        if (function_exists('pcntl_alarm') && defined('SIGALRM')) {
+            pcntl_alarm($jobTimeout);
+        }
         $result = $vedika->processPDFQueueOnce($workerId);
-        $activeQueueCall = false;
     } catch (Throwable $e) {
-        $activeQueueCall = false;
         $result = [
             'status' => false,
             'idle' => false,
             'message' => $e->getMessage()
         ];
+    } finally {
+        if (function_exists('pcntl_alarm') && defined('SIGALRM')) {
+            pcntl_alarm(0);
+        }
+        $activeQueueCall = false;
+    }
+
+    if ($watchdogTriggered) {
+        // Setelah timeout, jangan pakai proses PHP yang sama lagi. Supervisor
+        // akan menjalankan worker baru sehingga state mPDF/Ghostscript bersih.
+        $stopRequested = true;
     }
 
     $log = [
@@ -127,7 +170,7 @@ do {
         $processed++;
     }
 
-    if ($runOnce || ($maxJobs > 0 && $processed >= $maxJobs)) {
+    if ($stopRequested || $runOnce || ($maxJobs > 0 && $processed >= $maxJobs)) {
         break;
     }
 

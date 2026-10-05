@@ -111,6 +111,9 @@
     $('input:text[name=nm_pasien]').val(nm_pasien);
     $('input:text[name=umur]').val(umur);
     $('input:text[name=tgl_registrasi]').val(tgl_registrasi);
+    // Simpan konteks pasien pada form SOAP agar modal asesmen tidak mengambil
+    // input no_rawat dari form lain yang sedang tersembunyi.
+    $('#form_soap').data('no_rawat', no_rawat).data('no_rkm_medis', no_rkm_medis).data('nm_pasien', nm_pasien);
     $("#display").hide();
 
     var url = baseURL + '/dokter_igd/soap?t=' + mlite.token;

@@ -61,6 +61,15 @@
 <script>
 (function(){
   var root=$('#vedikaDiagnosisEditor'), timer=null, selected=null, substituteCode='', substitutePriority=0;
+  function notifyCodingUpdated(response){
+    if(!response || !response.ok) return;
+    // Kirim konteks episode secara eksplisit agar semua halaman induk
+    // memperbarui row yang tepat tanpa menunggu modal ditutup.
+    $(document).trigger('vedika:coding-updated',[{
+      noRawat:'{?=convertNorawat($no_rawat)?}',
+      status:'{$status_lanjut}'
+    },response]);
+  }
   function esc(v){return $('<div>').text(v==null?'':v).html();}
   function reload(){
     $.ajax({url:'{$reload_url}',method:'GET',cache:false}).done(function(html){
@@ -81,7 +90,7 @@
       $.post(mlite.url+'/'+mlite.admin+'/vedika/caridiagnosaklaim?t='+mlite.token,{query:q},function(res){
         var box=$('#vdDiagnosisResults').empty();
         $.each(res.items||[],function(_,x){
-          var valid=String(x.validcode)==='1', secondary=String(x.accpdx).toUpperCase()==='N';
+          var valid=x.valid_for_coding===true||String(x.valid_for_coding)==='1'||String(x.validcode).trim()==='1', secondary=String(x.accpdx).toUpperCase()==='N';
           var allowed=valid && !(substitutePriority===1 && secondary);
           var label=!valid?'Tidak valid grouping':(!allowed?'Tidak dapat mengganti diagnosis utama':(secondary?'Hanya sekunder':'Utama/sekunder'));
           $('<button type="button">').addClass('list-group-item '+(!allowed?'list-group-item-danger disabled':''))
@@ -111,6 +120,7 @@
       : {no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$('#vdDiagnosisCode').val(),prioritas:$('#vdDiagnosisPriority').val()};
     $.post(mlite.url+'/'+mlite.admin+'/vedika/'+endpoint+'?t='+mlite.token,payload,function(res){
       if(!res.ok){bootbox.alert(res.message);return;}
+      notifyCodingUpdated(res);
       reload();
     },'json');
   });
@@ -129,6 +139,7 @@
     var code=$(this).data('code');
     $.post(mlite.url+'/'+mlite.admin+'/vedika/jadikandiagnosautama?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:code},function(res){
       if(!res.ok){bootbox.alert(res.message);return;}
+      notifyCodingUpdated(res);
       reload();
     },'json');
   });
@@ -138,7 +149,8 @@
       if(!ok)return;
       $.post(mlite.url+'/'+mlite.admin+'/vedika/hapusdiagnosa?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kd_penyakit:b.data('code'),prioritas:b.data('priority')},function(res){
         if(!res.ok){bootbox.alert(res.message);return;}
-        reload();
+        notifyCodingUpdated(res);
+      reload();
       },'json');
     });
   });

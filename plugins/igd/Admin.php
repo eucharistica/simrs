@@ -466,6 +466,18 @@ class Admin extends AdminModule
         }
 
       }
+      if (in_array($_POST['kat'] ?? '', ['laboratorium', 'radiologi'], true)) {
+        $kat = $_POST['kat']; $tanggal = !empty($_POST['tgl_perawatan']) ? $_POST['tgl_perawatan'] : date('Y-m-d'); $jam = $_POST['jam_rawat'] ?? date('H:i:s'); $kode = $_POST['kd_jenis_prw']; $noRawat = $_POST['no_rawat'];
+        $dokter = $this->core->getUserInfo('username', null, true);
+        if (!$this->db('dokter')->where('kd_dokter', $dokter)->where('status', '1')->oneArray()) { $reg = $this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray(); $dokter = $reg['kd_dokter'] ?? $dokter; }
+        if ($kat === 'laboratorium') {
+          $parent = $this->db('permintaan_lab')->where('no_rawat', $noRawat)->where('tgl_permintaan', $tanggal)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
+          if (!$parent) { $max=$this->db('permintaan_lab')->select(['noorder'=>'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan',$tanggal)->oneArray(); $noorder='PK'.str_replace('-','',$tanggal).str_pad((string)((int)($max['noorder']??0)+1),4,'0',STR_PAD_LEFT); $this->db('permintaan_lab')->save(['noorder'=>$noorder,'no_rawat'=>$noRawat,'tgl_permintaan'=>$tanggal,'jam_permintaan'=>$jam,'tgl_sampel'=>'0000-00-00','jam_sampel'=>'00:00:00','tgl_hasil'=>'0000-00-00','jam_hasil'=>'00:00:00','dokter_perujuk'=>$dokter,'status'=>'ralan','informasi_tambahan'=>trim((string)($_POST['informasi_tambahan']??''))?:'-','diagnosa_klinis'=>trim((string)($_POST['diagnosa_klinis']??''))?:'-','tambahan'=>'Tidak Cito']); $this->db('permintaan_lab_order')->save(['noorder'=>$noorder,'jam_permintaan'=>$tanggal.' '.$jam,'jam_sampel'=>$tanggal.' 00:00:00','jam_hasil'=>$tanggal.' 00:00:00']); } else { $noorder=$parent['noorder']; }
+          $this->db('permintaan_pemeriksaan_lab')->save(['noorder'=>$noorder,'kd_jenis_prw'=>$kode,'stts_bayar'=>'Belum']); foreach($this->db('template_laboratorium')->where('kd_jenis_prw',$kode)->toArray() as $tpl)$this->db('permintaan_detail_permintaan_lab')->save(['noorder'=>$noorder,'kd_jenis_prw'=>$kode,'id_template'=>$tpl['id_template'],'stts_bayar'=>'Belum']);
+        } else {
+          $parent=$this->db('permintaan_radiologi')->where('no_rawat',$noRawat)->where('tgl_permintaan',$tanggal)->where('tgl_sampel','0000-00-00')->where('status','ralan')->oneArray(); if(!$parent){$max=$this->db('permintaan_radiologi')->select(['noorder'=>'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan',$tanggal)->oneArray();$noorder='PR'.str_replace('-','',$tanggal).str_pad((string)((int)($max['noorder']??0)+1),4,'0',STR_PAD_LEFT);$this->db('permintaan_radiologi')->save(['noorder'=>$noorder,'no_rawat'=>$noRawat,'tgl_permintaan'=>$tanggal,'jam_permintaan'=>$jam,'tgl_sampel'=>'0000-00-00','jam_sampel'=>'00:00:00','tgl_hasil'=>'0000-00-00','jam_hasil'=>'00:00:00','dokter_perujuk'=>$dokter,'status'=>'ralan','informasi_tambahan'=>trim((string)($_POST['informasi_tambahan']??''))?:'-','diagnosa_klinis'=>trim((string)($_POST['diagnosa_klinis']??''))?:'-','tambahan'=>'No Alarm']);}else{$noorder=$parent['noorder'];}$this->db('permintaan_pemeriksaan_radiologi')->save(['noorder'=>$noorder,'kd_jenis_prw'=>$kode,'stts_bayar'=>'Belum']);
+        }
+      }
       exit();
     }
 
@@ -631,6 +643,52 @@ class Admin extends AdminModule
       exit();
     }
 
+    public function anyTriase()
+    {
+      $no_rawat = $_POST['no_rawat'] ?? $_GET['no_rawat'] ?? '';
+      $data = [
+        'igd' => $this->db('data_triase_igd')->where('no_rawat', $no_rawat)->oneArray(),
+        'primer' => $this->db('data_triase_igdprimer')->where('no_rawat', $no_rawat)->oneArray(),
+        'sekunder' => $this->db('data_triase_igdsekunder')->where('no_rawat', $no_rawat)->oneArray(),
+        'master' => [], 'terpilih' => []
+      ];
+      foreach ([1,2,3,4,5] as $skala) {
+        $data['master']['skala'.$skala] = $this->db('master_triase_skala'.$skala)
+          ->join('master_triase_pemeriksaan', 'master_triase_pemeriksaan.kode_pemeriksaan=master_triase_skala'.$skala.'.kode_pemeriksaan')->toArray();
+        $data['terpilih']['skala'.$skala] = $this->db('data_triase_igddetail_skala'.$skala)->where('no_rawat', $no_rawat)->toArray();
+      }
+      header('Content-Type: application/json; charset=utf-8'); echo json_encode($data); exit();
+    }
+
+    public function postSaveTriase()
+    {
+      $no_rawat = trim((string) ($_POST['no_rawat'] ?? ''));
+      if ($no_rawat === '') { http_response_code(422); echo json_encode(['ok'=>false,'message'=>'Nomor rawat kosong.']); exit(); }
+      $value = function($key, $default = '-') { $v = trim((string) ($_POST[$key] ?? '')); return $v === '' ? $default : $v; };
+      $triaseDate = trim((string) ($_POST['triase_datetime'] ?? ''));
+      $triaseDate = str_replace('T', ' ', substr($triaseDate, 0, 19));
+      $parsed = $triaseDate !== '' ? strtotime($triaseDate) : false;
+      $triaseDate = $parsed === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $parsed);
+      $nip = (string) $this->core->getUserInfo('username', null, true);
+      $jenis = ($_POST['jenis_triase'] ?? 'primer') === 'sekunder' ? 'sekunder' : 'primer';
+      $kd_dokter = $nip;
+      if (!$this->db('dokter')->where('kd_dokter', $kd_dokter)->oneArray()) {
+        $reg = $this->db('reg_periksa')->where('no_rawat', $no_rawat)->oneArray();
+        if ($reg && $this->db('dokter')->where('kd_dokter', $reg['kd_dokter'])->oneArray()) $kd_dokter = $reg['kd_dokter'];
+      }
+      $this->db('data_triase_igd')->save(['no_rawat'=>$no_rawat,'tgl_kunjungan'=>$triaseDate,'cara_masuk'=>$value('cara_masuk','Jalan'),'alat_transportasi'=>$value('alat_transportasi','Sendiri'),'alasan_kedatangan'=>$value('alasan_kedatangan'),'keterangan_kedatangan'=>$value('keterangan_kedatangan'),'kode_kasus'=>$value('kode_kasus','002'),'tekanan_darah'=>$value('tekanan_darah'),'nadi'=>$value('nadi'),'pernapasan'=>$value('pernapasan'),'bb'=>$value('bb'),'suhu'=>$value('suhu'),'saturasi_o2'=>$value('saturasi_o2'),'nyeri'=>$value('nyeri'),'emergency'=>$value('emergency','True Emergency'),'nip'=>$nip]);
+      if ($jenis === 'primer') {
+        $this->db('data_triase_igdprimer')->save(['no_rawat'=>$no_rawat,'keluhan_utama'=>$value('keluhan_utama'),'kebutuhan_khusus'=>$value('kebutuhan_khusus'),'catatan'=>$value('catatan'),'plan'=>$value('plan','Ruang Resusitasi'),'tanggaltriase'=>$triaseDate,'kd_dokter'=>$kd_dokter]);
+      } else {
+        $this->db('data_triase_igdsekunder')->save(['no_rawat'=>$no_rawat,'anamnesa_singkat'=>$value('anamnesa_singkat'),'catatan'=>$value('catatan'),'plan'=>$value('plan','Zona Kuning'),'tanggaltriase'=>$triaseDate,'kd_dokter'=>$kd_dokter]);
+      }
+      foreach ([1,2,3,4,5] as $skala) {
+        $table='data_triase_igddetail_skala'.$skala; $this->db($table)->where('no_rawat',$no_rawat)->delete(); $items=json_decode($_POST['skala'.$skala] ?? '[]',true);
+        if (is_array($items)) foreach ($items as $kode) if (trim((string)$kode)!=='') $this->db($table)->save(['no_rawat'=>$no_rawat,'kode_skala'.$skala=>trim((string)$kode)]);
+      }
+      header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok'=>true,'jenis'=>$jenis]); exit();
+    }
+
     public function postSaveSOAP()
     {
       $_POST['nip'] = $this->core->getUserInfo('username', null, true);
@@ -670,6 +728,28 @@ class Admin extends AdminModule
         ->limit(10)
         ->toArray();
       echo $this->draw('obat.html', ['obat' => $obat]);
+      exit();
+    }
+
+    public function anyLaboratorium()
+    {
+      $laboratorium = $this->db('jns_perawatan_lab')
+        ->where('status', '1')
+        ->like('nm_perawatan', '%'.($_POST['laboratorium'] ?? '').'%')
+        ->limit(10)
+        ->toArray();
+      echo $this->draw('laboratorium.html', ['laboratorium' => $laboratorium]);
+      exit();
+    }
+
+    public function anyRadiologi()
+    {
+      $radiologi = $this->db('jns_perawatan_radiologi')
+        ->where('status', '1')
+        ->like('nm_perawatan', '%'.($_POST['radiologi'] ?? '').'%')
+        ->limit(10)
+        ->toArray();
+      echo $this->draw('radiologi.html', ['radiologi' => $radiologi]);
       exit();
     }
 
@@ -780,7 +860,7 @@ class Admin extends AdminModule
       if(isset($_POST["query"])){
         $output = '';
         $key = "%".$_POST["query"]."%";
-        $rows = $this->db('petugas')->like('nama', $key)->limit(10)->toArray();
+        $rows = $this->db('petugas')->like('nama', $key)->where('status', '1')->limit(10)->toArray();
         $output = '';
         if(count($rows)){
           foreach ($rows as $row) {
@@ -792,6 +872,28 @@ class Admin extends AdminModule
 
       exit();
 
+    }
+
+    public function anyCurrentProvider()
+    {
+      $username = (string) $this->core->getUserInfo('username', null, true);
+      $role = (string) $this->core->getUserInfo('role');
+      $user = $this->db('mlite_users')->where('username', $username)->oneArray();
+      if ($role === '' && !empty($user['role'])) {
+        $role = (string) $user['role'];
+      }
+      $dokter = $this->db('dokter')->where('kd_dokter', $username)->where('status', '1')->oneArray();
+      $petugas = $this->db('petugas')->where('nip', $username)->where('status', '1')->oneArray();
+      $fullname = (string) ($user['fullname'] ?? '');
+      if ($fullname === '' && $role === 'medis' && $dokter) {
+        $fullname = (string) ($dokter['nm_dokter'] ?? '');
+      }
+      if ($fullname === '' && $role === 'paramedis' && $petugas) {
+        $fullname = (string) ($petugas['nama'] ?? '');
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok'=>true,'username'=>$username,'role'=>$role,'fullname'=>$fullname,'dokter'=>$dokter ?: [],'petugas'=>$petugas ?: []]);
+      exit();
     }
 
     public function postCekWaktu()

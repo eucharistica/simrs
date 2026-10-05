@@ -441,13 +441,29 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdf', $this->convertNorawat($row['no_rawat'])]);
+        $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
+        $pdfKlaimState = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = ($pdfKlaimState && file_exists(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaimState['lokasi_file'])) ? '1' : '';
+        $row['pdf_klaim_url'] = $row['pdf_klaim_created'] === '1' ? url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaimState['lokasi_file'] : '';
         $row['setstatusURL']  = url([ADMIN, 'vedika', 'setstatus', $this->_getSEPInfo('no_sep', $row['no_rawat'])]);
         $row['inacbgsURL'] = url([ADMIN, 'vedika', 'bridginginacbgs', $this->convertNorawat($row['no_rawat']), '?nosep=' . rawurlencode($row['no_sep'])]);
         $row['status_pengajuan'] = $this->db('mlite_vedika')->where('nosep', $this->_getSEPInfo('no_sep', $row['no_rawat']))->desc('id')->limit(1)->toArray();
         $row['berkasPasien'] = url([ADMIN, 'vedika', 'berkaspasien', $this->getRegPeriksaInfo('no_rkm_medis', $row['no_rawat'])]);
         $row['berkasPerawatan'] = url([ADMIN, 'vedika', 'berkasperawatan', $this->convertNorawat($row['no_rawat'])]);
+        $pdfKlaim = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = ($pdfKlaim && file_exists(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaim['lokasi_file'])) ? '1' : '';
+        $row['pdf_klaim_url'] = $row['pdf_klaim_created'] === '1' ? url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaim['lokasi_file'] : '';
         if ($type == 'ranap') {
           $_get_kamar_inap = $this->db('kamar_inap')->where('no_rawat', $row['no_rawat'])->limit(1)->desc('tgl_keluar')->toArray();
           $row['tgl_registrasi'] = $_get_kamar_inap[0]['tgl_keluar'];
@@ -722,8 +738,21 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdf', $this->convertNorawat($row['no_rawat'])]);
+        $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
+        $pdfKlaim = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = ($pdfKlaim && file_exists(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaim['lokasi_file'])) ? '1' : '';
+        $row['pdf_klaim_url'] = $row['pdf_klaim_created'] === '1' ? url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaim['lokasi_file'] : '';
         $row['setstatusURL']  = url([ADMIN, 'vedika', 'setstatus', $this->_getSEPInfo('no_sep', $row['no_rawat'])]);
         $row['inacbgsURL'] = url([ADMIN, 'vedika', 'bridginginacbgs', $this->convertNorawat($row['no_rawat']), '?nosep=' . rawurlencode($row['no_sep'])]);
         $row['status_pengajuan'] = $this->db('mlite_vedika')->where('nosep', $this->_getSEPInfo('no_sep', $row['no_rawat']))->desc('id')->limit(1)->toArray();
@@ -874,7 +903,8 @@ class Admin extends AdminModule
         ki.tgl_keluar,
         ki.jam_keluar,
         ki.kd_kamar,
-        bs.no_sep
+        bs.no_sep,
+        bs.klsrawat
       FROM reg_periksa rp
         INNER JOIN pasien p
           ON rp.no_rkm_medis = p.no_rkm_medis
@@ -890,6 +920,7 @@ class Admin extends AdminModule
           ON d.kd_dokter = drp.kd_dokter
         LEFT JOIN bridging_sep bs
           ON bs.no_rawat = rp.no_rawat
+         AND bs.jnspelayanan = '1'
         LEFT JOIN mlite_vedika mv
           ON mv.no_rawat = rp.no_rawat
       WHERE
@@ -962,9 +993,22 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['resume'] = $this->_getResumeRanap('cara_keluar', $row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
+        $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdf', $this->convertNorawat($row['no_rawat'])]);
+        $pdfKlaim = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = ($pdfKlaim && file_exists(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaim['lokasi_file'])) ? '1' : '';
+        $row['pdf_klaim_url'] = $row['pdf_klaim_created'] === '1' ? url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaim['lokasi_file'] : '';
         $row['setstatusURL']  = url([ADMIN, 'vedika', 'setstatus', $this->_getSEPInfo('no_sep', $row['no_rawat'])]);
         $row['inacbgsURL'] = url([ADMIN, 'vedika', 'bridginginacbgs', $this->convertNorawat($row['no_rawat']), '?nosep=' . rawurlencode($row['no_sep'])]);
         $row['status_pengajuan'] = $this->db('mlite_vedika')->where('nosep', $this->_getSEPInfo('no_sep', $row['no_rawat']))->desc('id')->limit(1)->toArray();
@@ -977,6 +1021,12 @@ class Admin extends AdminModule
           $get_kamar = $this->db('kamar')->where('kd_kamar', $_get_kamar_inap[0]['kd_kamar'])->oneArray();
           $get_bangsal = $this->db('bangsal')->where('kd_bangsal', $get_kamar['kd_bangsal'])->oneArray();
           $row['nm_poli'] = $get_bangsal['nm_bangsal'].'/'.$get_kamar['kd_kamar'];
+          $kelasValidation = $this->_validateKelasRawat($row['klsrawat'] ?? '', $get_kamar['kelas'] ?? '');
+          $row['kelas_rawat_mismatch'] = $kelasValidation['mismatch'];
+          $row['kelas_rawat_alert'] = $kelasValidation['alert'];
+          if ($kelasValidation['mismatch']) {
+            $row['coding_blocked'] = true;
+          }
           $row['nm_dokter'] = $this->db('dpjp_ranap')
             ->join('dokter', 'dokter.kd_dokter=dpjp_ranap.kd_dokter')
             ->where('no_rawat', $row['no_rawat'])
@@ -1087,6 +1137,7 @@ class Admin extends AdminModule
     LIMIT $perpage OFFSET $offset");
     $query->execute(['%' . $phrase . '%']);
     $rows = $query->fetchAll();
+    $missingRemoteBerkasAlerts = $this->_getMissingRemoteBerkasAlertsForRows($rows);
     
     $poliklinik = $this->db('poliklinik')
           ->where('status', '1')
@@ -1145,6 +1196,27 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        // Notifikasi fisik berkas remote hanya bersifat peringatan.
+        // Jangan ikut mengunci status/koding karena berkas mungkin baru saja
+        // diunggah ulang dan akan tervalidasi saat halaman direfresh.
+        $remoteFileAlerts = isset($missingRemoteBerkasAlerts[$row['no_rawat']])
+          ? $missingRemoteBerkasAlerts[$row['no_rawat']]
+          : [];
+        if (!empty($remoteFileAlerts)) {
+          $row['required_document_alerts'] = array_values(array_unique(array_merge(
+            $row['required_document_alerts'],
+            $remoteFileAlerts
+          )));
+        }
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['resume'] = $this->_getResumeRanap('cara_keluar', $row['no_rawat']);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdf', $this->convertNorawat($row['no_rawat'])]);
@@ -1159,6 +1231,13 @@ class Admin extends AdminModule
           $get_bangsal = $this->db('bangsal')->where('kd_bangsal', $get_kamar['kd_bangsal'])->oneArray();
           $row['nm_poli'] = $get_bangsal['nm_bangsal'].'/'.$get_kamar['kd_kamar'];
           $row['nm_dokter'] = $this->getDpjpRanap('nm_dokter', $row['no_rawat']);
+        }
+        $pdfKlaim = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = '';
+        $row['pdf_klaim_url'] = '';
+        if ($pdfKlaim && !empty($pdfKlaim['lokasi_file']) && is_file(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaim['lokasi_file'])) {
+          $row['pdf_klaim_created'] = '1';
+          $row['pdf_klaim_url'] = url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaim['lokasi_file'];
         }
         $this->assign['list'][] = $row;
       }
@@ -1351,6 +1430,10 @@ class Admin extends AdminModule
     
     if (isset($_GET['s']))
       $phrase = $_GET['s'];
+
+    $dc_filter = isset($_GET['dc']) ? strtolower(trim((string) $_GET['dc'])) : 'all';
+    if (!in_array($dc_filter, ['all', 'sent', 'unsent'], true)) $dc_filter = 'all';
+    $dcWhere = $this->_groupingDcFilterSql('mlite_vedika', $dc_filter);
       
     $poli = '';
     if (isset($_GET['poli']) && $_GET['poli'] != '')
@@ -1368,17 +1451,20 @@ class Admin extends AdminModule
       mlite_vedika.*
       FROM
       mlite_vedika
+      INNER JOIN reg_periksa rp ON rp.no_rawat = mlite_vedika.no_rawat
       -- INNER JOIN bridging_sep on bridging_sep.no_rawat = mlite_vedika.no_rawat
       WHERE
       mlite_vedika.tgl_registrasi BETWEEN '$start_date' AND '$end_date'
       AND mlite_vedika.kd_poli LIKE '%$poli%'
       AND mlite_vedika.`status` = 'Lengkap'
       AND mlite_vedika.jenis = '2'
+      AND rp.stts <> 'Batal'
+      $dcWhere
       AND (mlite_vedika.no_rkm_medis LIKE ? OR mlite_vedika.nosep LIKE ?)");
     $totalRecords->execute(['%' . $phrase . '%', '%' . $phrase . '%']);
     $totalRecords = $totalRecords->fetchAll();
 
-    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'lengkap', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli]));
+    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'lengkap', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli . '&dc=' . $dc_filter]));
     $this->assign['pagination'] = $pagination->nav('pagination', '5');
     $this->assign['totalRecords'] = $totalRecords;
     
@@ -1399,11 +1485,14 @@ class Admin extends AdminModule
         ) AS jumlah_kunjungan
     
     FROM mlite_vedika v
+    INNER JOIN reg_periksa rp ON rp.no_rawat = v.no_rawat
     WHERE
         v.tgl_registrasi BETWEEN '$start_date' AND '$end_date'
         AND v.kd_poli LIKE '%$poli%'
         AND v.status = 'Lengkap'
         AND v.jenis  = '2'
+        AND rp.stts <> 'Batal'
+      " . $this->_groupingDcFilterSql('v', $dc_filter) . "
       AND (v.no_rkm_medis LIKE ? OR v.nosep LIKE ?) ORDER BY v.nosep ASC LIMIT $perpage OFFSET $offset");
     $query->execute(['%' . $phrase . '%', '%' . $phrase . '%']);
     $rows = $query->fetchAll();
@@ -1429,6 +1518,13 @@ class Admin extends AdminModule
           ->asc('prioritas')
           ->toArray();       
 
+        $codingValidation = $this->_validateCodingRows($diagnosa_pasienx, $prosedur_pasienx);
+        $row['coding_blocked'] = !$codingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($codingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($codingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['grouping_error'] = $this->_getLatestGroupingFailure($row['no_rawat'], $row['nosep']);
+        $row['dc_delivery'] = $this->_getLatestGroupingDelivery($row['no_rawat'], $row['nosep']);
+
         $no_peserta = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
 
         $row = htmlspecialchars_array($row);    
@@ -1444,6 +1540,7 @@ class Admin extends AdminModule
         $row['sttsumur'] = $this->core->getRegPeriksaInfo('sttsumur', $row['no_rawat']);
         $row['tgl_registrasi'] = $this->core->getRegPeriksaInfo('tgl_registrasi', $row['no_rawat']);
         $row['status_lanjut'] = $this->core->getRegPeriksaInfo('status_lanjut', $row['no_rawat']);
+        $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['png_jawab'] = $this->core->getPenjabInfo('png_jawab', $this->core->getRegPeriksaInfo('kd_pj', $row['no_rawat']));
         $row['jam_reg'] = $this->core->getRegPeriksaInfo('jam_reg', $row['no_rawat']);
         $row['nm_dokter'] = $this->core->getDokterInfo('nm_dokter', $this->core->getRegPeriksaInfo('kd_dokter', $row['no_rawat']));
@@ -1458,9 +1555,15 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
+        $pdfKlaim = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = ($pdfKlaim && file_exists(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaim['lokasi_file'])) ? '1' : '';
+        $row['pdf_klaim_url'] = $row['pdf_klaim_created'] === '1' ? url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaim['lokasi_file'] : '';
         $row['setstatusURL']  = url([ADMIN, 'vedika', 'setstatus', $this->_getSEPInfo('no_sep', $row['no_rawat'])]);
         $row['status_lengkap'] = $this->db('mlite_vedika')->where('nosep', $this->_getSEPInfo('no_sep', $row['no_rawat']))->desc('id')->limit(1)->toArray();
         $row['berkasPasien'] = url([ADMIN, 'vedika', 'berkaspasien', $this->getRegPeriksaInfo('no_rkm_medis', $row['no_rawat'])]);
@@ -1506,7 +1609,7 @@ class Admin extends AdminModule
     $this->core->addCSS(url('assets/jscripts/lightbox/lightbox.min.css'));
     $this->core->addJS(url('assets/jscripts/lightbox/lightbox.min.js'));
 
-    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'lengkap', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
+    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'lengkap', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli . '&dc=' . $dc_filter]);
     return $this->draw('lengkap.html', ['tab' => $type, 'vedika' => $this->assign]);
   }
 
@@ -1653,26 +1756,38 @@ class Admin extends AdminModule
     if (isset($_GET['s']))
       $phrase = $_GET['s'];
 
+    $dc_filter = isset($_GET['dc']) ? strtolower(trim((string) $_GET['dc'])) : 'all';
+    if (!in_array($dc_filter, ['all', 'sent', 'unsent'], true)) $dc_filter = 'all';
+    $dcWhere = $this->_groupingDcFilterSql('mlite_vedika', $dc_filter);
+
     // pagination
-    $totalRecords = $this->db()->pdo()->prepare("SELECT no_rawat 
-    FROM mlite_vedika 
+    $totalRecords = $this->db()->pdo()->prepare("SELECT mlite_vedika.no_rawat
+    FROM mlite_vedika
+    INNER JOIN reg_periksa rp ON rp.no_rawat = mlite_vedika.no_rawat
     WHERE 
-    status = 'Lengkap'
-    AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ? ) 
-    AND no_rawat IN (SELECT no_rawat FROM kamar_inap WHERE tgl_keluar BETWEEN '$start_date' AND '$end_date' AND kamar_inap.stts_pulang != 'Pindah Kamar')");
+    mlite_vedika.status = 'Lengkap'
+    AND mlite_vedika.jenis = '1'
+    AND rp.stts <> 'Batal'
+    $dcWhere
+    AND (mlite_vedika.no_rkm_medis LIKE ? OR mlite_vedika.no_rawat LIKE ? OR mlite_vedika.nosep LIKE ? )
+    AND mlite_vedika.no_rawat IN (SELECT no_rawat FROM kamar_inap WHERE tgl_keluar BETWEEN '$start_date' AND '$end_date' AND kamar_inap.stts_pulang != 'Pindah Kamar')");
     $totalRecords->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
     $totalRecords = $totalRecords->fetchAll();
 
-    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'lengkapinap', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]));
+    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'lengkapinap', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&dc=' . $dc_filter]));
     $this->assign['pagination'] = $pagination->nav('pagination', '5');
     $this->assign['totalRecords'] = $totalRecords;
     
     $offset = $pagination->offset();$nomor = $offset + 1;
-    $query = $this->db()->pdo()->prepare("SELECT * 
-    FROM mlite_vedika 
-    WHERE status = 'Lengkap'
-    AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) 
-    AND no_rawat IN (SELECT no_rawat FROM kamar_inap WHERE tgl_keluar BETWEEN '$start_date' AND '$end_date' AND kamar_inap.stts_pulang != 'Pindah Kamar') 
+    $query = $this->db()->pdo()->prepare("SELECT mlite_vedika.*
+    FROM mlite_vedika
+    INNER JOIN reg_periksa rp ON rp.no_rawat = mlite_vedika.no_rawat
+    WHERE mlite_vedika.status = 'Lengkap'
+    AND mlite_vedika.jenis = '1'
+    AND rp.stts <> 'Batal'
+    $dcWhere
+    AND (mlite_vedika.no_rkm_medis LIKE ? OR mlite_vedika.no_rawat LIKE ? OR mlite_vedika.nosep LIKE ?)
+    AND mlite_vedika.no_rawat IN (SELECT no_rawat FROM kamar_inap WHERE tgl_keluar BETWEEN '$start_date' AND '$end_date' AND kamar_inap.stts_pulang != 'Pindah Kamar')
     order by mlite_vedika.nosep LIMIT $perpage OFFSET $offset");
       $query->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
       $rows = $query->fetchAll();
@@ -1697,6 +1812,13 @@ class Admin extends AdminModule
           ->where('status', 'Ranap')
           ->asc('prioritas')
           ->toArray();  
+
+        $codingValidation = $this->_validateCodingRows($diagnosa_pasien, $prosedur_pasien);
+        $row['coding_blocked'] = !$codingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($codingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($codingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['grouping_error'] = $this->_getLatestGroupingFailure($row['no_rawat'], $row['nosep']);
+        $row['dc_delivery'] = $this->_getLatestGroupingDelivery($row['no_rawat'], $row['nosep']);
 
         $no_peserta = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
     
@@ -1728,6 +1850,9 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;        
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasien, $prosedur_pasien, $berkas_digital);
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
@@ -1777,9 +1902,9 @@ class Admin extends AdminModule
     $this->core->addCSS(url('assets/jscripts/lightbox/lightbox.min.css'));
     $this->core->addJS(url('assets/jscripts/lightbox/lightbox.min.js'));
 
-    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'lengkapinap', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
-    $this->assign['ralanUrl'] =  url([ADMIN, 'vedika', 'lengkapinap', 'ralan', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
-    $this->assign['ranapUrl'] =  url([ADMIN, 'vedika', 'lengkapinap', 'ranap', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
+    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'lengkapinap', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&dc=' . $dc_filter]);
+    $this->assign['ralanUrl'] =  url([ADMIN, 'vedika', 'lengkapinap', 'ralan', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&dc=' . $dc_filter]);
+    $this->assign['ranapUrl'] =  url([ADMIN, 'vedika', 'lengkapinap', 'ranap', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&dc=' . $dc_filter]);
     return $this->draw('lengkapinap.html', ['tab' => $type, 'vedika' => $this->assign]);
   }
 
@@ -1938,18 +2063,21 @@ class Admin extends AdminModule
     $this->assign['poliklinik'] = $poliklinik; 
 
     // pagination
-    $totalRecords = $this->db()->pdo()->prepare("SELECT no_rawat FROM mlite_vedika WHERE status = 'Pengajuan' AND mlite_vedika.kd_poli LIKE '%$poli%' AND jenis ='2' AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) AND tgl_registrasi BETWEEN '$start_date' AND '$end_date'");
+    $totalRecords = $this->db()->pdo()->prepare("SELECT no_rawat FROM mlite_vedika WHERE status = 'Pengajuan' AND mlite_vedika.kd_poli LIKE '%$poli%' AND jenis ='2' AND EXISTS (SELECT 1 FROM reg_periksa rp WHERE rp.no_rawat = mlite_vedika.no_rawat AND rp.stts <> 'Batal') AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) AND tgl_registrasi BETWEEN '$start_date' AND '$end_date'");
     $totalRecords->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
     $totalRecords = $totalRecords->fetchAll();
 
-    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'pengajuan', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]));
+    // Bawa seluruh filter aktif ke URL pagination agar pindah halaman tidak
+    // menghilangkan filter poli (selain tanggal dan pencarian).
+    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'pengajuan', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli]));
     $this->assign['pagination'] = $pagination->nav('pagination', '5');
     $this->assign['totalRecords'] = $totalRecords;
 
     $offset = $pagination->offset();$nomor = $offset + 1;
-    $query = $this->db()->pdo()->prepare("SELECT * FROM mlite_vedika WHERE status = 'Pengajuan' AND mlite_vedika.kd_poli LIKE '%$poli%' AND jenis ='2' AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) AND tgl_registrasi BETWEEN '$start_date' AND '$end_date' ORDER BY nosep LIMIT $perpage OFFSET $offset");
+    $query = $this->db()->pdo()->prepare("SELECT * FROM mlite_vedika WHERE status = 'Pengajuan' AND mlite_vedika.kd_poli LIKE '%$poli%' AND jenis ='2' AND EXISTS (SELECT 1 FROM reg_periksa rp WHERE rp.no_rawat = mlite_vedika.no_rawat AND rp.stts <> 'Batal') AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) AND tgl_registrasi BETWEEN '$start_date' AND '$end_date' ORDER BY nosep LIMIT $perpage OFFSET $offset");
     $query->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
     $rows = $query->fetchAll();
+    $missingRemoteBerkasAlerts = $this->_getMissingRemoteBerkasAlertsForRows($rows);
     
     $this->assign['list'] = [];
     if (count($rows)) {
@@ -2001,6 +2129,27 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        // Notifikasi fisik berkas remote hanya bersifat peringatan.
+        // Jangan ikut mengunci status/koding karena berkas mungkin baru saja
+        // diunggah ulang dan akan tervalidasi saat halaman direfresh.
+        $remoteFileAlerts = isset($missingRemoteBerkasAlerts[$row['no_rawat']])
+          ? $missingRemoteBerkasAlerts[$row['no_rawat']]
+          : [];
+        if (!empty($remoteFileAlerts)) {
+          $row['required_document_alerts'] = array_values(array_unique(array_merge(
+            $row['required_document_alerts'],
+            $remoteFileAlerts
+          )));
+        }
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
@@ -2049,9 +2198,9 @@ class Admin extends AdminModule
     $this->core->addCSS(url('assets/jscripts/lightbox/lightbox.min.css'));
     $this->core->addJS(url('assets/jscripts/lightbox/lightbox.min.js'));
 
-    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'pengajuan', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
-    $this->assign['ralanUrl'] =  url([ADMIN, 'vedika', 'pengajuan', 'ralan', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
-    $this->assign['ranapUrl'] =  url([ADMIN, 'vedika', 'pengajuan', 'ranap', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
+    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'pengajuan', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli]);
+    $this->assign['ralanUrl'] =  url([ADMIN, 'vedika', 'pengajuan', 'ralan', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli]);
+    $this->assign['ranapUrl'] =  url([ADMIN, 'vedika', 'pengajuan', 'ranap', $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . $poli]);
     return $this->draw('pengajuan.html', ['tab' => $type, 'vedika' => $this->assign]);
   }
 
@@ -2201,7 +2350,8 @@ class Admin extends AdminModule
     // pagination
     $totalRecords = $this->db()->pdo()->prepare("SELECT no_rawat 
     FROM mlite_vedika 
-    WHERE status = 'Pengajuan'     
+    WHERE status = 'Pengajuan'
+    AND EXISTS (SELECT 1 FROM reg_periksa rp WHERE rp.no_rawat = mlite_vedika.no_rawat AND rp.stts <> 'Batal')
     AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) 
     AND no_rawat IN (SELECT no_rawat FROM kamar_inap WHERE tgl_keluar BETWEEN '$start_date' AND '$end_date' AND kamar_inap.stts_pulang != 'Pindah Kamar')");
       $totalRecords->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
@@ -2214,12 +2364,14 @@ class Admin extends AdminModule
       $offset = $pagination->offset();$nomor = $offset + 1;
       $query = $this->db()->pdo()->prepare("SELECT * 
       FROM mlite_vedika 
-      WHERE status = 'Pengajuan' 
+      WHERE status = 'Pengajuan'
+      AND EXISTS (SELECT 1 FROM reg_periksa rp WHERE rp.no_rawat = mlite_vedika.no_rawat AND rp.stts <> 'Batal')
       AND (no_rkm_medis LIKE ? OR no_rawat LIKE ? OR nosep LIKE ?) 
       AND no_rawat IN (SELECT no_rawat FROM kamar_inap WHERE tgl_keluar BETWEEN '$start_date' AND '$end_date' AND kamar_inap.stts_pulang != 'Pindah Kamar') 
       order by mlite_vedika.nosep LIMIT $perpage OFFSET $offset");
       $query->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
       $rows = $query->fetchAll();
+    $missingRemoteBerkasAlerts = $this->_getMissingRemoteBerkasAlertsForRows($rows);
     
      $this->assign['list'] = [];
     if (count($rows)) {
@@ -2268,6 +2420,27 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        // Notifikasi fisik berkas remote hanya bersifat peringatan.
+        // Jangan ikut mengunci status/koding karena berkas mungkin baru saja
+        // diunggah ulang dan akan tervalidasi saat halaman direfresh.
+        $remoteFileAlerts = isset($missingRemoteBerkasAlerts[$row['no_rawat']])
+          ? $missingRemoteBerkasAlerts[$row['no_rawat']]
+          : [];
+        if (!empty($remoteFileAlerts)) {
+          $row['required_document_alerts'] = array_values(array_unique(array_merge(
+            $row['required_document_alerts'],
+            $remoteFileAlerts
+          )));
+        }
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
@@ -2747,10 +2920,23 @@ class Admin extends AdminModule
         $row['kode'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
         $row['deskripsi_panjang'] = $this->_getProsedur('deskripsi_panjang', $row['no_rawat'], $row['status_lanjut']);
         $row['berkas_digital'] = $berkas_digital;
+        $row['required_document_alerts'] = $this->_getRequiredDocumentAlerts($row['no_rawat'], $row['no_rkm_medis'], $diagnosa_pasienx, $prosedur_pasienx, $berkas_digital);
+        $currentDiagnosisRows = isset($diagnosa_pasienx) ? $diagnosa_pasienx : (isset($diagnosa_pasien) ? $diagnosa_pasien : []);
+        $currentProcedureRows = isset($prosedur_pasienx) ? $prosedur_pasienx : (isset($prosedur_pasien) ? $prosedur_pasien : []);
+        $currentCodingValidation = $this->_validateCodingRows($currentDiagnosisRows, $currentProcedureRows);
+        $row['coding_blocked'] = !$currentCodingValidation['ok'];
+        $row['diagnosis_validation_message'] = htmlspecialchars($currentCodingValidation['diagnosis_message'], ENT_QUOTES, 'UTF-8');
+        $row['procedure_validation_message'] = htmlspecialchars($currentCodingValidation['procedure_message'], ENT_QUOTES, 'UTF-8');
+        $row['coding_blocked'] = !empty($row['coding_blocked']) || !empty($row['required_document_alerts']);
+        $row['radiology_expertise_missing'] = $this->_hasMissingRadiologyExpertise($row['no_rawat']);
         $row['formSepURL'] = url([ADMIN, 'vedika', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
         $row['pdfURL'] = url([ADMIN, 'vedika', 'pdf', $this->convertNorawat($row['no_rawat'])]);
+        $row['createPdfKlaimURL'] = url([ADMIN, 'vedika', 'createpdfklaim', $this->convertNorawat($row['no_rawat'])]);
         $row['setstatusURL']  = url([ADMIN, 'vedika', 'setstatus', $this->_getSEPInfo('no_sep', $row['no_rawat'])]);
         $row['status_pengajuan'] = $this->db('mlite_vedika')->where('nosep', $this->_getSEPInfo('no_sep', $row['no_rawat']))->desc('id')->limit(1)->toArray();
+        $pdfKlaim = $this->db('berkas_digital_perawatan')->where('no_rawat', $row['no_rawat'])->where('kode', 'KLM')->oneArray();
+        $row['pdf_klaim_created'] = ($pdfKlaim && file_exists(WEBAPPS_PATHX . '/berkasrawat/' . $pdfKlaim['lokasi_file'])) ? '1' : '';
+        $row['pdf_klaim_url'] = $row['pdf_klaim_created'] === '1' ? url(WEBAPPS_URLX) . '/berkasrawat/' . $pdfKlaim['lokasi_file'] : '';
         $row['berkasPasien'] = url([ADMIN, 'vedika', 'berkaspasien', $this->getRegPeriksaInfo('no_rkm_medis', $row['no_rawat'])]);
         $row['berkasPerawatan'] = url([ADMIN, 'vedika', 'berkasperawatan', $this->convertNorawat($row['no_rawat'])]);
         if ($this->core->getRegPeriksaInfo('status_lanjut', $row['no_rawat']) == 'Ranap') {
@@ -3136,27 +3322,38 @@ class Admin extends AdminModule
       $resp = curl_exec($curl);
       curl_close($curl);
 
-      $patient = json_decode($resp, TRUE);
-
-      $pacs['Series'] = $patient[0]["Series"][0];   
-
-      if($pacs['Series'] != "") {
-        
-          $curl = curl_init();
-          curl_setopt ($curl, CURLOPT_URL, $orthanc . '/series/' . $pacs['Series']);
-          curl_setopt ($curl, CURLOPT_RETURNTRANSFER, 1);
-          curl_setopt ($curl, CURLOPT_USERPWD, $this->settings->get('orthanc.username').":".$this->settings->get('orthanc.password'));
-          curl_setopt ($curl, CURLOPT_TIMEOUT, 30);
-          $resp = curl_exec($curl);
-          curl_close($curl);
-
-          $Instances = json_decode($resp, TRUE);
-          $pacs['Instances'][] = $Instances;
-    }
+      $patient = json_decode($resp, true);
+      $pacs['Series'] = [];
+      $pacs['Instances'] = [];
+      if (is_array($patient)) {
+        foreach ($patient as $study) {
+          if (!isset($study['Series']) || !is_array($study['Series'])) continue;
+          foreach ($study['Series'] as $seriesId) {
+            $seriesId = trim((string) $seriesId);
+            if ($seriesId !== '') $pacs['Series'][$seriesId] = $seriesId;
+          }
+        }
+      }
+      foreach ($pacs['Series'] as $seriesId) {
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $orthanc . '/series/' . rawurlencode($seriesId));
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($curl, CURLOPT_USERPWD, $this->settings->get('orthanc.username').":".$this->settings->get('orthanc.password'));
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+        $seriesResponse = curl_exec($curl);
+        $seriesHttpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        if ($seriesResponse === false || $seriesHttpCode < 200 || $seriesHttpCode >= 300) continue;
+        $series = json_decode($seriesResponse, true);
+        if (!is_array($series) || empty($series['ID']) || empty($series['Instances']) || !is_array($series['Instances'])) continue;
+        $pacs['Instances'][] = $series;
+      }
 
     $berkas_digital = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->notLike('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
       ->toArray();
@@ -3164,6 +3361,7 @@ class Admin extends AdminModule
     $berkas_digital_pdf = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->where('berkas_digital_perawatan.kode','!=' ,'001')
       ->like('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
@@ -3172,12 +3370,23 @@ class Admin extends AdminModule
     $berkas_sep_pdf = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->where('berkas_digital_perawatan.kode','=', '001')
       ->like('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
       ->toArray();
 
     $no_rawat = $this->revertNorawat($id);
+    $catatan_observasi_igd = $this->db('catatan_observasi_igd')
+      ->where('no_rawat', $no_rawat)
+      ->asc('tgl_perawatan')
+      ->asc('jam_rawat')
+      ->toArray();
+    $catatan_observasi_ranap = $this->db('catatan_observasi')
+      ->where('no_rawat', $no_rawat)
+      ->asc('tgl_perawatan')
+      ->asc('jam_rawat')
+      ->toArray();
 
     $check_billing = $this->db()->pdo()->query("SHOW TABLES LIKE 'billing'");
     $check_billing->execute();
@@ -3764,7 +3973,6 @@ class Admin extends AdminModule
       ->asc('tgl_perawatan')
       ->asc('jam_rawat')
       ->toArray();
-    
     foreach ($pemeriksaan_ranap as &$pr) {
       if (!isset($pr['pemeriksaan']) || $pr['pemeriksaan'] === '') continue;
     
@@ -4045,7 +4253,20 @@ class Admin extends AdminModule
     $this->tpl->set('pacs', $pacs);
     $this->tpl->set('orthanc', $orthanc);
     // $this->tpl->set(name: 'tgl_hasil', value: $tgl_hasil);
-    $this->tpl->set('hasil_radiologi', $this->db('hasil_radiologi')->where('no_rawat', $this->revertNorawat($id))->toArray());
+    $hasilRadiologiPDF = $this->db('hasil_radiologi')->where('no_rawat', $this->revertNorawat($id))->toArray();
+    $hasExpertiseRadiologi = false;
+    foreach ($hasilRadiologiPDF as $hasilRadiologiRow) {
+      $expertiseText = isset($hasilRadiologiRow['hasil'])
+        ? html_entity_decode(strip_tags((string) $hasilRadiologiRow['hasil']), ENT_QUOTES, 'UTF-8')
+        : '';
+      $expertiseText = str_replace("\xC2\xA0", ' ', $expertiseText);
+      if (trim($expertiseText) !== '') {
+        $hasExpertiseRadiologi = true;
+        break;
+      }
+    }
+    $this->tpl->set('hasil_radiologi', $hasilRadiologiPDF);
+    $this->tpl->set('has_expertise_radiologi', $hasExpertiseRadiologi);
     $this->tpl->set('gambar_radiologi', $this->db('gambar_radiologi')->where('no_rawat', $this->revertNorawat($id))->toArray());
     $this->tpl->set('vedika', htmlspecialchars_array($this->settings('vedika')));
     $this->tpl->set('pengaturan_billing', $this->settings->get('vedika.billing'));
@@ -4053,6 +4274,8 @@ class Admin extends AdminModule
     $this->tpl->set('kunjungan', $frekuensi_kunjungan);
     $this->tpl->set('uji_fungsi_kfr', $uji_fungsi_kfr);
     $this->tpl->set('pre_uji_fungsi_kfr', $pre_uji_fungsi_kfr);
+    $this->tpl->set('catatan_observasi_igd', $catatan_observasi_igd);
+    $this->tpl->set('catatan_observasi_ranap', $catatan_observasi_ranap);
     echo $this->tpl->draw(MODULES . '/vedika/view/admin/pdf.html', true);
     exit();
   }
@@ -4064,6 +4287,7 @@ class Admin extends AdminModule
     $berkas_digital = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->notLike('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
       ->toArray();
@@ -4071,6 +4295,7 @@ class Admin extends AdminModule
     $berkas_digital_pdf = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->where('berkas_digital_perawatan.kode','!=' ,'001')
       ->like('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
@@ -4079,6 +4304,7 @@ class Admin extends AdminModule
     $berkas_sep_pdf = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->where('berkas_digital_perawatan.kode','=', '001')
       ->like('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
@@ -4674,6 +4900,16 @@ class Admin extends AdminModule
       ->asc('tgl_perawatan')
       ->asc('jam_rawat')
       ->toArray();
+    $catatan_observasi_igd = $this->db('catatan_observasi_igd')
+      ->where('no_rawat', $this->revertNorawat($id))
+      ->asc('tgl_perawatan')
+      ->asc('jam_rawat')
+      ->toArray();
+    $catatan_observasi_ranap = $this->db('catatan_observasi')
+      ->where('no_rawat', $this->revertNorawat($id))
+      ->asc('tgl_perawatan')
+      ->asc('jam_rawat')
+      ->toArray();
     
     foreach ($pemeriksaan_ranap as &$pr) {
       if (!isset($pr['pemeriksaan']) || $pr['pemeriksaan'] === '') continue;
@@ -4926,6 +5162,8 @@ class Admin extends AdminModule
     $this->tpl->set('prosedur_pasien', $prosedur_pasien);
     $this->tpl->set('pemeriksaan_ralan', $pemeriksaan_ralan);
     $this->tpl->set('pemeriksaan_ranap', $pemeriksaan_ranap);
+    $this->tpl->set('catatan_observasi_igd', $catatan_observasi_igd);
+    $this->tpl->set('catatan_observasi_ranap', $catatan_observasi_ranap);
     $this->tpl->set('resume_ranap', $resume_ranap);
     $this->tpl->set('rawat_jl_dr', $rawat_jl_dr);
     $this->tpl->set('rawat_jl_pr', $rawat_jl_pr);
@@ -4996,6 +5234,7 @@ class Admin extends AdminModule
     $berkas_digital = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->notLike('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
       ->toArray();
@@ -5003,15 +5242,8 @@ class Admin extends AdminModule
     $berkas_digital_pdf = $this->db('berkas_digital_perawatan')
       ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
       ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
+      ->where('berkas_digital_perawatan.kode', '!=', 'KLM')
       ->where('berkas_digital_perawatan.kode','!=' ,'001')
-      ->like('lokasi_file','%pdf')
-      ->asc('master_berkas_digital.nama')
-      ->toArray();
-
-    $berkas_sep_pdf = $this->db('berkas_digital_perawatan')
-      ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
-      ->where('berkas_digital_perawatan.no_rawat', $this->revertNorawat($id))
-      ->where('berkas_digital_perawatan.kode','=', '001')
       ->like('lokasi_file','%pdf')
       ->asc('master_berkas_digital.nama')
       ->toArray();
@@ -5621,6 +5853,16 @@ class Admin extends AdminModule
       ->asc('tgl_perawatan')
       ->asc('jam_rawat')
       ->toArray();
+    $catatan_observasi_igd = $this->db('catatan_observasi_igd')
+      ->where('no_rawat', $this->revertNorawat($id))
+      ->asc('tgl_perawatan')
+      ->asc('jam_rawat')
+      ->toArray();
+    $catatan_observasi_ranap = $this->db('catatan_observasi')
+      ->where('no_rawat', $this->revertNorawat($id))
+      ->asc('tgl_perawatan')
+      ->asc('jam_rawat')
+      ->toArray();
     
     foreach ($pemeriksaan_ranap as &$pr) {
       if (!isset($pr['pemeriksaan']) || $pr['pemeriksaan'] === '') continue;
@@ -5901,7 +6143,6 @@ class Admin extends AdminModule
 
     $this->tpl->set('berkas_digital', $berkas_digital);
     $this->tpl->set('berkas_digital_pdf', $berkas_digital_pdf);
-    $this->tpl->set('berkas_sep_pdf', $berkas_sep_pdf);
 
     $this->tpl->set('pacs', $pacs);
     $this->tpl->set('orthanc', $orthanc);
@@ -5915,6 +6156,8 @@ class Admin extends AdminModule
     $this->tpl->set('uji_fungsi_kfr', $uji_fungsi_kfr);
     $this->tpl->set('pre_uji_fungsi_kfr', $pre_uji_fungsi_kfr);
     
+    $this->tpl->set('catatan_observasi_igd', $catatan_observasi_igd);
+    $this->tpl->set('catatan_observasi_ranap', $catatan_observasi_ranap);
     $no_sep_qr = $this->_bridgeVal($print_sep, 'no_sep', $this->_getSEPInfo('no_sep', $no_rawat));
     
     /*
@@ -6092,8 +6335,48 @@ class Admin extends AdminModule
       )
     );
 
-  return $this->tpl->draw(MODULES . '/vedika/view/admin/pdfklaim_generate.html', true);
+  return $this->_drawPDFKlaimTemplateSafely(MODULES . '/vedika/view/admin/pdfklaim_generate.html');
  }
+
+  /**
+   * Render template PDF Vedika tanpa membiarkan warning/notice/deprecation PHP
+   * tercetak ke HTML/PDF. Semua warning tetap masuk error_log server.
+   *
+   * Ini menjadi lapisan global untuk field NULL / key array yang tidak ada,
+   * termasuk dokumen kondisional yang belum diberi isset() satu per satu.
+   * Exception dan fatal error tidak ditelan agar job tetap gagal dengan benar.
+   */
+  private function _drawPDFKlaimTemplateSafely($templatePath)
+  {
+    $previousDisplayErrors = ini_get('display_errors');
+    $previousHtmlErrors = ini_get('html_errors');
+
+    ini_set('display_errors', '0');
+    ini_set('html_errors', '0');
+
+    $mask = E_WARNING | E_NOTICE | E_DEPRECATED | E_USER_WARNING | E_USER_NOTICE | E_USER_DEPRECATED;
+    if (defined('E_STRICT')) {
+      $mask |= E_STRICT;
+    }
+
+    set_error_handler(function ($severity, $message, $file, $line) use ($mask) {
+      if (($severity & $mask) === 0) {
+        return false;
+      }
+
+      // Jangan memasukkan warning ke output PDF, tetapi tetap simpan untuk audit/debug.
+      error_log('[VEDIKA PDF TEMPLATE] ' . $message . ' @ ' . $file . ':' . $line);
+      return true;
+    }, $mask);
+
+    try {
+      return $this->tpl->draw($templatePath, true);
+    } finally {
+      restore_error_handler();
+      ini_set('display_errors', (string) $previousDisplayErrors);
+      ini_set('html_errors', (string) $previousHtmlErrors);
+    }
+  }
   
   public function getPDFKlaim($id)
   {
@@ -6154,332 +6437,1454 @@ class Admin extends AdminModule
       ]);
     }
   
-    private function _createPDFKlaimFile($no_rawat)
+    private function _resetPDFManifest($jobId, $no_rawat, $nosep)
     {
-      $id = $this->convertNorawat($no_rawat);
-    
-      $vedika = $this->db('mlite_vedika')
+      $pdo = $this->db()->pdo();
+
+      if ($jobId === null) {
+        $stmt = $pdo->prepare("DELETE FROM mlite_vedika_pdf_manifest
+          WHERE job_id IS NULL AND no_rawat = ? AND nosep = ?");
+        $stmt->execute([$no_rawat, $nosep]);
+      } else {
+        $stmt = $pdo->prepare("DELETE FROM mlite_vedika_pdf_manifest WHERE job_id = ?");
+        $stmt->execute([(int) $jobId]);
+      }
+    }
+
+    private function _insertPDFManifestRow($jobId, $no_rawat, $nosep, $urutan, $kode, $nama, $sifat, $expected, $sourceCount, $message)
+    {
+      $stmt = $this->db()->pdo()->prepare("INSERT INTO mlite_vedika_pdf_manifest
+        (job_id, no_rawat, nosep, urutan, kode_dokumen, nama_dokumen, sifat, expected, generated, source_count, message, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())");
+      $stmt->execute([
+        $jobId === null ? null : (int) $jobId,
+        $no_rawat,
+        $nosep,
+        (int) $urutan,
+        $kode,
+        $nama,
+        $sifat,
+        $expected ? 1 : 0,
+        (int) $sourceCount,
+        substr((string) $message, 0, 500)
+      ]);
+    }
+
+    private function _updatePDFManifestRow($jobId, $no_rawat, $nosep, $kode, $generated, $message, $sourceCount = null)
+    {
+      $pdo = $this->db()->pdo();
+      $params = [(int) ($generated ? 1 : 0)];
+      $setSource = '';
+
+      if ($sourceCount !== null) {
+        $setSource = ', source_count = ?';
+        $params[] = (int) $sourceCount;
+      }
+
+      $params[] = substr((string) $message, 0, 500);
+
+      if ($jobId === null) {
+        $sql = "UPDATE mlite_vedika_pdf_manifest
+          SET generated = ?{$setSource}, message = ?
+          WHERE job_id IS NULL AND no_rawat = ? AND nosep = ? AND kode_dokumen = ?";
+        $params[] = $no_rawat;
+        $params[] = $nosep;
+        $params[] = $kode;
+      } else {
+        $sql = "UPDATE mlite_vedika_pdf_manifest
+          SET generated = ?{$setSource}, message = ?
+          WHERE job_id = ? AND kode_dokumen = ?";
+        $params[] = (int) $jobId;
+        $params[] = $kode;
+      }
+
+      $stmt = $pdo->prepare($sql);
+      $stmt->execute($params);
+    }
+
+    private function _initializePDFManifestCore($jobId, $no_rawat, $nosep)
+    {
+      $this->_resetPDFManifest($jobId, $no_rawat, $nosep);
+
+      $sep = $this->db('bridging_sep')
+        ->where('no_sep', $nosep)
         ->where('no_rawat', $no_rawat)
         ->oneArray();
-    
-      if (!$vedika) {
+
+      // Tahap 1: empat dokumen inti yang wajib selalu ada pada PDF klaim.
+      $this->_insertPDFManifestRow(
+        $jobId, $no_rawat, $nosep, 10,
+        'INACBG', 'PDF INACBG', 'wajib', 1, 1,
+        'Menunggu tarikan PDF dari bridging e-Klaim'
+      );
+      $this->_insertPDFManifestRow(
+        $jobId, $no_rawat, $nosep, 20,
+        'SEP', 'Surat Elegibilitas Peserta (SEP)', 'wajib', 1, $sep ? 1 : 0,
+        $sep ? 'Sumber bridging_sep tersedia; menunggu render' : 'bridging_sep tidak ditemukan'
+      );
+      $this->_insertPDFManifestRow(
+        $jobId, $no_rawat, $nosep, 30,
+        'BILLING', 'Billing / Bukti Pembayaran', 'wajib', 1, 1,
+        'Menunggu render billing'
+      );
+      $this->_insertPDFManifestRow(
+        $jobId, $no_rawat, $nosep, 40,
+        'RESUME', 'Resume Medis Pasien', 'wajib', 1, 1,
+        'Menunggu render resume medis'
+      );
+
+      return [
+        'status' => (bool) $sep,
+        'message' => $sep
+          ? 'Manifest inti siap'
+          : 'SEP wajib tetapi data bridging_sep tidak ditemukan'
+      ];
+    }
+
+    private function _getPDFManifestRows($jobId, $no_rawat, $nosep)
+    {
+      $pdo = $this->db()->pdo();
+
+      if ($jobId === null) {
+        $stmt = $pdo->prepare("SELECT * FROM mlite_vedika_pdf_manifest
+          WHERE job_id IS NULL AND no_rawat = ? AND nosep = ? ORDER BY urutan, id");
+        $stmt->execute([$no_rawat, $nosep]);
+      } else {
+        $stmt = $pdo->prepare("SELECT * FROM mlite_vedika_pdf_manifest
+          WHERE job_id = ? ORDER BY urutan, id");
+        $stmt->execute([(int) $jobId]);
+      }
+
+      return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    private function _preparePDFKlaimRenderedHTML($html)
+    {
+      $html = (string) $html;
+      $html = preg_replace('/<script\b[^>]*>[\s\S]*?<\/script>/i', '', $html);
+      $html = preg_replace('/<link\b[^>]*>/i', '', $html);
+      $html = preg_replace('/<a\b[^>]*id=["\']printPageButton["\'][^>]*>[\s\S]*?<\/a>/i', '', $html);
+      $html = preg_replace(
+        '/<iframe\b[^>]*><\/iframe>/i',
+        '<div style="border:1px solid #999;padding:10px;margin:10px 0;">Berkas PDF eksternal tidak dirender di bagian HTML ini.</div>',
+        $html
+      );
+      $html = str_replace('class="container"', '', $html);
+      return $this->_cleanHTMLForMpdf($html);
+    }
+
+    /**
+     * Sanitasi otomatis karakter spesial pada TEXT NODE HTML hasil render.
+     *
+     * Data klinis seperti "ROM <<", "<1 TAHUN" atau "A & B" tidak boleh
+     * dianggap sebagai markup oleh mPDF. Tag HTML valid dari template tetap
+     * dipertahankan; karakter spesial di luar tag dikonversi ke entity HTML.
+     *
+     * Dilakukan setelah template selesai dirender sehingga berlaku global
+     * untuk SEP, Billing, Resume dan dokumen kondisional.
+     */
+    private function _pdfSanitizeRenderedBodySpecialChars($html)
+    {
+      $html = (string) $html;
+      if ($html === '') {
+        return '';
+      }
+
+      // "<1 TAHUN" dan "<<" tidak dianggap tag karena setelah '<' bukan
+      // nama tag yang valid, sehingga akan tetap menjadi text node.
+      $tagPattern = "~(<!--[\s\S]*?-->|<!DOCTYPE\b[^>]*>|<\?[\s\S]*?\?>|</?[A-Za-z][A-Za-z0-9:_-]*(?:\s+(?:\"[^\"]*\"|'[^']*'|[^'\">])*)?\s*/?>)~iu";
+      $parts = preg_split($tagPattern, $html, -1, PREG_SPLIT_DELIM_CAPTURE);
+      if ($parts === false) {
+        return $html;
+      }
+
+      $isTagPattern = "~^(?:<!--[\s\S]*?-->|<!DOCTYPE\b[^>]*>|<\?[\s\S]*?\?>|</?[A-Za-z][A-Za-z0-9:_-]*(?:\s+(?:\"[^\"]*\"|'[^']*'|[^'\">])*)?\s*/?>)$~iu";
+
+      foreach ($parts as &$part) {
+        if ($part === '' || preg_match($isTagPattern, $part)) {
+          continue;
+        }
+
+        // Pertahankan entity valid yang sudah ada; hanya ampersand mentah
+        // seperti "Dokter & Perawat" yang diubah menjadi &amp;.
+        $part = preg_replace(
+          '/&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)/u',
+          '&amp;',
+          $part
+        );
+
+        // Kasus utama yang sebelumnya menghentikan mPDF.
+        $part = str_replace(['<', '>'], ['&lt;', '&gt;'], $part);
+      }
+      unset($part);
+
+      return implode('', $parts);
+    }
+
+    /**
+     * Cache gambar dari server WEBAPPS remote ke temp job sebelum diberikan ke mPDF.
+     *
+     * KLM memang dibuat di server mLITE ini (WEBAPPS_PATHX), tetapi berkas digital
+     * lain dan radiologi berada di server WEBAPPS_URL. mPDF tidak dibiarkan fetch
+     * URL tersebut sendiri karena kegagalan HTTP sesaat bisa menghasilkan PDF final
+     * yang tetap sukses namun kehilangan sebagian gambar.
+     *
+     * Strategi: download dengan retry, validasi sebagai image, lalu rewrite src ke
+     * file temp lokal. Jika satu saja asset wajib gagal diambil setelah retry, caller
+     * menggagalkan job agar queue retry dan tidak mem-publish PDF yang tidak lengkap.
+     */
+    private function _pdfCacheRemoteWebappsImageSources($html, $tempDir)
+    {
+      $html = (string) $html;
+      $cached = 0;
+      $missingRemote = [];
+
+      if (!is_dir($tempDir) && !mkdir($tempDir, 0770, true) && !is_dir($tempDir)) {
         return [
-          'status' => false,
-          'message' => 'Data Vedika tidak ditemukan',
-          'no_rawat' => $no_rawat
+          'html' => $html,
+          'cached' => 0,
+          'missing_remote' => [[
+            'url' => '',
+            'message' => 'Gagal membuat temp directory cache asset remote: ' . $tempDir,
+          ]],
         ];
       }
-    
-      if ($vedika['status'] != 'Pengajuan') {
+
+      $result = preg_replace_callback(
+        '/(<img\\b[^>]*\\bsrc\\s*=\\s*)(["\\\'])([^"\\\']+)\\2/i',
+        function ($match) use (&$cached, &$missingRemote, $tempDir) {
+          $src = html_entity_decode((string) $match[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+          $srcPath = parse_url($src, PHP_URL_PATH);
+          if (!is_string($srcPath) || $srcPath === '') {
+            $srcPath = $src;
+          }
+
+          // Logo/TTE yang memang tersedia lokal tetap dibaca dari filesystem lokal.
+          $ttdMarker = '/TTD/';
+          $ttdPos = strpos($srcPath, $ttdMarker);
+          if ($ttdPos !== false) {
+            $relative = rawurldecode(substr($srcPath, $ttdPos + strlen($ttdMarker)));
+            $relative = ltrim(str_replace('\\\\', '/', $relative), '/');
+            if ($relative !== '' && strpos($relative, '..') === false) {
+              $localPath = rtrim(WEBAPPS_PATHX, '/\\') . '/TTD/' . $relative;
+              if (is_file($localPath) && is_readable($localPath) && filesize($localPath) > 0) {
+                $safePath = htmlspecialchars(str_replace('\\\\', '/', $localPath), ENT_QUOTES, 'UTF-8');
+                return $match[1] . $match[2] . $safePath . $match[2];
+              }
+            }
+            return $match[0];
+          }
+
+          $remoteMarkers = ['/berkasrawat/', '/radiologi/'];
+          foreach ($remoteMarkers as $marker) {
+            $pos = strpos($srcPath, $marker);
+            if ($pos === false) {
+              continue;
+            }
+
+            $relative = rawurldecode(substr($srcPath, $pos + strlen($marker)));
+            $relative = ltrim(str_replace('\\\\', '/', $relative), '/');
+            if ($relative === '' || strpos($relative, '..') !== false) {
+              $missingRemote[] = [
+                'url' => $src,
+                'message' => 'Path asset remote tidak valid',
+              ];
+              return $match[0];
+            }
+
+            $parts = array_map('rawurlencode', explode('/', $relative));
+            $canonicalUrl = rtrim(WEBAPPS_URL, '/') . $marker . implode('/', $parts);
+            $download = $this->_downloadRemoteImageToLocal(
+              $canonicalUrl,
+              $tempDir,
+              $marker === '/radiologi/' ? 'radiologi' : 'berkas'
+            );
+
+            if (!empty($download['status'])) {
+              $cached++;
+              $safePath = htmlspecialchars(str_replace('\\\\', '/', $download['path']), ENT_QUOTES, 'UTF-8');
+              return $match[1] . $match[2] . $safePath . $match[2];
+            }
+
+            $missingRemote[] = [
+              'url' => $canonicalUrl,
+              'message' => isset($download['message']) ? $download['message'] : 'Gagal download asset remote',
+            ];
+            return $match[0];
+          }
+
+          return $match[0];
+        },
+        $html
+      );
+
+      if (!is_string($result)) {
+        $result = $html;
+      }
+
+      // de-duplicate berdasarkan URL + message
+      $dedup = [];
+      foreach ($missingRemote as $item) {
+        $key = (isset($item['url']) ? $item['url'] : '') . '|' . (isset($item['message']) ? $item['message'] : '');
+        $dedup[$key] = $item;
+      }
+
+      return [
+        'html' => $result,
+        'cached' => $cached,
+        'missing_remote' => array_values($dedup),
+      ];
+    }
+
+    private function _downloadRemoteImageToLocal($url, $tempDir, $prefix = 'asset', $maxAttempts = 3)
+    {
+      if (!function_exists('curl_init')) {
+        return ['status' => false, 'message' => 'cURL belum aktif di PHP', 'url' => $url];
+      }
+      if (!is_dir($tempDir) && !mkdir($tempDir, 0770, true) && !is_dir($tempDir)) {
+        return ['status' => false, 'message' => 'Gagal membuat folder cache image', 'path' => $tempDir];
+      }
+
+      $urlPath = (string) parse_url($url, PHP_URL_PATH);
+      $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
+      if (!preg_match('/^(?:jpe?g|png|gif|webp|bmp)$/', $ext)) {
+        $ext = 'img';
+      }
+      $targetPath = rtrim($tempDir, '/\\') . '/' . preg_replace('/[^A-Za-z0-9_-]/', '_', $prefix)
+        . '_' . sha1($url) . '.' . $ext;
+
+      if (is_file($targetPath) && filesize($targetPath) > 0 && @getimagesize($targetPath) !== false) {
+        return ['status' => true, 'path' => $targetPath, 'url' => $url, 'cached' => true];
+      }
+
+      $lastError = '';
+      $lastHttp = 0;
+      for ($attempt = 1; $attempt <= max(1, (int) $maxAttempts); $attempt++) {
+        $fp = @fopen($targetPath, 'w+b');
+        if (!$fp) {
+          return ['status' => false, 'message' => 'Gagal membuat file cache image', 'path' => $targetPath];
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'mLITE Vedika PDF Asset Cache');
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($ch, CURLOPT_FAILONERROR, false);
+        curl_setopt($ch, CURLOPT_ENCODING, '');
+
+        $ok = curl_exec($ch);
+        $lastHttp = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $lastError = (string) curl_error($ch);
+        curl_close($ch);
+        fclose($fp);
+
+        $validHttp = $lastHttp >= 200 && $lastHttp < 300;
+        $validImage = is_file($targetPath) && filesize($targetPath) > 0 && @getimagesize($targetPath) !== false;
+        if ($ok && $validHttp && $validImage) {
+          return [
+            'status' => true,
+            'message' => 'Image remote berhasil dicache',
+            'path' => $targetPath,
+            'url' => $url,
+            'attempt' => $attempt,
+            'size' => filesize($targetPath),
+          ];
+        }
+
+        @unlink($targetPath);
+        if ($attempt < $maxAttempts) {
+          usleep(250000 * $attempt);
+        }
+      }
+
+      return [
+        'status' => false,
+        'message' => 'Gagal download/validasi image remote setelah ' . (int) $maxAttempts . ' percobaan',
+        'url' => $url,
+        'http_code' => $lastHttp,
+        'curl_error' => $lastError,
+      ];
+    }
+
+    private function _pdfExtractStyleHTML($html)
+    {
+      $styles = '';
+      if (preg_match_all('/<style\b[^>]*>[\s\S]*?<\/style>/i', (string) $html, $matches)) {
+        $styles = implode("\n", $matches[0]);
+      }
+      return $styles;
+    }
+
+    private function _pdfExtractBodyHTML($html)
+    {
+      if (preg_match('/<body\b[^>]*>([\s\S]*)<\/body\s*>/i', (string) $html, $match)) {
+        return $match[1];
+      }
+
+      $body = preg_replace('/<head\b[^>]*>[\s\S]*?<\/head>/i', '', (string) $html);
+      $body = preg_replace('/<\/?html\b[^>]*>/i', '', $body);
+      return $body;
+    }
+
+    private function _pdfMarkerDivBounds($body, $marker, $offset = 0)
+    {
+      $markerPos = strpos($body, $marker, max(0, (int) $offset));
+      if ($markerPos === false) {
+        return null;
+      }
+
+      $before = substr($body, 0, $markerPos);
+      $start = strripos($before, '<div');
+      if ($start === false) {
+        return null;
+      }
+
+      $close = stripos($body, '</div>', $markerPos);
+      if ($close === false) {
+        return null;
+      }
+
+      return [$start, $close + 6];
+    }
+
+    private function _pdfExtractMarkedSection($body, $startMarker, $endMarker)
+    {
+      $startBounds = $this->_pdfMarkerDivBounds($body, $startMarker);
+      $endBounds = $startBounds
+        ? $this->_pdfMarkerDivBounds($body, $endMarker, $startBounds[1])
+        : null;
+      if (!$startBounds || !$endBounds || $endBounds[1] <= $startBounds[0]) {
+        return null;
+      }
+
+      return substr($body, $startBounds[0], $endBounds[1] - $startBounds[0]);
+    }
+
+    private function _pdfBodyAfterMarkedSection($body, $startMarker, $endMarker)
+    {
+      $startBounds = $this->_pdfMarkerDivBounds($body, $startMarker);
+      $endBounds = $startBounds
+        ? $this->_pdfMarkerDivBounds($body, $endMarker, $startBounds[1])
+        : null;
+      if (!$endBounds) {
+        return '';
+      }
+      return substr($body, $endBounds[1]);
+    }
+
+    private function _pdfNormalizeStandaloneBody($body)
+    {
+      $body = (string) $body;
+      $body = preg_replace('/^\s*(?:<br\s*\/?\s*>\s*)+/i', '', $body);
+      $body = preg_replace('/^\s*<pagebreak\b[^>]*\/?\s*>\s*/i', '', $body, 1);
+      $body = preg_replace(
+        '/<fieldset\s+style=(["\'])page-break-before\s*:\s*always\s*;?\1/i',
+        '<fieldset style=$1page-break-before:auto;$1',
+        $body,
+        1
+      );
+      return $body;
+    }
+
+    private function _newVedikaMpdf($tempDir, $relaxedTables = false)
+    {
+      if (!is_dir($tempDir) && !mkdir($tempDir, 0770, true) && !is_dir($tempDir)) {
+        throw new \RuntimeException('Gagal membuat temp mPDF: ' . $tempDir);
+      }
+
+      $mpdf = new \Mpdf\Mpdf([
+        'mode' => 'utf-8',
+        'format' => 'A4',
+        'orientation' => 'P',
+        'margin_left' => 8,
+        'margin_right' => 8,
+        'margin_top' => 8,
+        'margin_bottom' => 8,
+        'tempDir' => $tempDir,
+        'img_dpi' => 96,
+        'jpeg_quality' => 70,
+      ]);
+
+      $mpdf->SetCompression(true);
+      $mpdf->simpleTables = true;
+      $mpdf->packTableData = true;
+      $mpdf->shrink_tables_to_fit = 1;
+      $mpdf->use_kwt = false;
+      $mpdf->keep_table_proportions = !$relaxedTables;
+      $mpdf->tableMinSizePriority = !$relaxedTables;
+      $mpdf->setAutoTopMargin = 'stretch';
+      $mpdf->setAutoBottomMargin = 'stretch';
+
+      $rsudLogoPath = WEBAPPS_PATHX . '/TTD/logo.png';
+      if (is_readable($rsudLogoPath)) {
+        $mpdf->imageVars['rsud_logo'] = file_get_contents($rsudLogoPath);
+      }
+
+      $bpjsLogoPath = BASE_DIR . '/plugins/vclaim/img/bpjslogo.png';
+      if (is_readable($bpjsLogoPath)) {
+        $mpdf->imageVars['bpjs_logo'] = file_get_contents($bpjsLogoPath);
+      }
+
+      return $mpdf;
+    }
+
+    private function _renderStandalonePDFPart($styles, $body, $targetPath, $tempDir, $sentinel, $relaxedTables = false)
+    {
+      $body = $this->_pdfNormalizeStandaloneBody($body);
+      $html = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" />'
+        . $styles
+        . '</head><body>'
+        . $body
+        . '</body></html>';
+      $html = $this->_cleanHTMLForMpdf($html);
+
+      try {
+        $mpdf = $this->_newVedikaMpdf($tempDir, $relaxedTables);
+        $mpdf->WriteHTML($html);
+        $mpdf->Output($targetPath, \Mpdf\Output\Destination::FILE);
+        unset($mpdf);
+      } catch (\Throwable $e) {
         return [
           'status' => false,
-          'message' => 'Status klaim belum Lengkap',
-          'no_rawat' => $no_rawat
+          'message' => $e->getMessage(),
+          'path' => $targetPath
         ];
       }
-    
+
+      if (!is_file($targetPath) || filesize($targetPath) <= 0) {
+        return [
+          'status' => false,
+          'message' => 'PDF bagian tidak terbentuk',
+          'path' => $targetPath
+        ];
+      }
+
+      $verified = $sentinel !== '' ? $this->_pdfContainsRenderSentinel($targetPath, $sentinel) : null;
+      if ($verified === false) {
+        return [
+          'status' => false,
+          'message' => 'Render bagian berhenti sebelum marker akhir: ' . $sentinel,
+          'path' => $targetPath,
+          'size' => filesize($targetPath),
+          'verified' => false
+        ];
+      }
+
+      return [
+        'status' => true,
+        'message' => $verified === true ? 'Bagian terverifikasi' : 'Bagian berhasil dirender; txtwrite tidak tersedia',
+        'path' => $targetPath,
+        'size' => filesize($targetPath),
+        'verified' => $verified
+      ];
+    }
+
+    private function _splitLargePDFTableChunk($tableHtml, $maxRows = 24, $maxBytes = 90000)
+    {
+      $tableHtml = (string) $tableHtml;
+      if (strlen($tableHtml) <= $maxBytes) {
+        return [$tableHtml];
+      }
+
+      if (!preg_match('/^(\s*<table\b[^>]*>)([\s\S]*?)(<\/table>\s*)$/i', $tableHtml, $tableMatch)) {
+        return [$tableHtml];
+      }
+
+      if (!preg_match('/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i', $tableMatch[2], $tbodyMatch, PREG_OFFSET_CAPTURE)) {
+        return [$tableHtml];
+      }
+
+      $tbodyFull = $tbodyMatch[0][0];
+      $tbodyPos = $tbodyMatch[0][1];
+      $tbodyInner = $tbodyMatch[1][0];
+      if (!preg_match_all('/<tr\b[^>]*>[\s\S]*?<\/tr>/i', $tbodyInner, $rowMatches) || count($rowMatches[0]) <= $maxRows) {
+        return [$tableHtml];
+      }
+
+      $prefixInner = substr($tableMatch[2], 0, $tbodyPos);
+      $suffixInner = substr($tableMatch[2], $tbodyPos + strlen($tbodyFull));
+      $tbodyOpen = '<tbody>';
+      if (preg_match('/^<tbody\b[^>]*>/i', $tbodyFull, $openMatch)) {
+        $tbodyOpen = $openMatch[0];
+      }
+
+      $parts = [];
+      $currentRows = [];
+      $currentBytes = 0;
+      foreach ($rowMatches[0] as $row) {
+        $rowBytes = strlen($row);
+        if ($currentRows && (count($currentRows) >= $maxRows || ($currentBytes + $rowBytes) > $maxBytes)) {
+          $parts[] = $tableMatch[1] . $prefixInner . $tbodyOpen . implode('', $currentRows) . '</tbody>' . $suffixInner . $tableMatch[3];
+          $currentRows = [];
+          $currentBytes = 0;
+        }
+        $currentRows[] = $row;
+        $currentBytes += $rowBytes;
+      }
+      if ($currentRows) {
+        $parts[] = $tableMatch[1] . $prefixInner . $tbodyOpen . implode('', $currentRows) . '</tbody>' . $suffixInner . $tableMatch[3];
+      }
+
+      return $parts ?: [$tableHtml];
+    }
+
+    private function _buildResumeRenderChunks($resumeBody)
+    {
+      $top = $this->_splitPDFHTMLTopLevelChunks((string) $resumeBody);
+      $result = [];
+
+      foreach ($top as $chunk) {
+        if (trim($chunk) === '' || strpos($chunk, 'VEDIKA_DOC_RESUME_START') !== false || strpos($chunk, 'VEDIKA_DOC_RESUME</') !== false) {
+          continue;
+        }
+        if (preg_match('/^\s*<pagebreak\b/i', $chunk)) {
+          continue;
+        }
+
+        if ($this->_pdfHTMLChunkHasClass($chunk, 'div', 'resume-document')) {
+          $inner = $this->_pdfHTMLOuterTagInner($chunk, 'div');
+          if ($inner === null) {
+            $result[] = $chunk;
+            continue;
+          }
+
+          $resumeChunks = $this->_splitPDFHTMLTopLevelChunks($inner);
+          foreach ($resumeChunks as $resumeChunk) {
+            if (trim($resumeChunk) === '') {
+              continue;
+            }
+
+            if ($this->_pdfHTMLChunkHasClass($resumeChunk, 'div', 'resume-section')) {
+              $sectionInner = $this->_pdfHTMLOuterTagInner($resumeChunk, 'div');
+              if ($sectionInner === null) {
+                $tableParts = preg_match('/^\s*<table\b/i', $resumeChunk)
+              ? $this->_splitLargePDFTableChunk($resumeChunk)
+              : [$resumeChunk];
+            foreach ($tableParts as $tablePart) {
+              $result[] = '<div class="resume-document">' . $tablePart . '</div>';
+            }
+                continue;
+              }
+
+              $sectionChunks = $this->_splitPDFHTMLTopLevelChunks($sectionInner);
+              if (!$sectionChunks) {
+                $result[] = '<div class="resume-document"><div class="resume-section">'
+                  . $sectionInner . '</div></div>';
+                continue;
+              }
+
+              foreach ($sectionChunks as $sectionChunk) {
+                if (trim($sectionChunk) === '') {
+                  continue;
+                }
+                $tableParts = preg_match('/^\s*<table\b/i', $sectionChunk)
+                  ? $this->_splitLargePDFTableChunk($sectionChunk)
+                  : [$sectionChunk];
+                foreach ($tableParts as $tablePart) {
+                  $result[] = '<div class="resume-document"><div class="resume-section">'
+                    . $tablePart . '</div></div>';
+                }
+              }
+              continue;
+            }
+
+            $result[] = '<div class="resume-document">' . $resumeChunk . '</div>';
+          }
+          continue;
+        }
+
+        $result[] = $chunk;
+      }
+
+      return $result;
+    }
+
+    private function _groupPDFHTMLChunks($chunks, $maxBytes = 160000, $maxItems = 8)
+    {
+      $groups = [];
+      $current = [];
+      $bytes = 0;
+
+      foreach ($chunks as $chunk) {
+        $chunkBytes = strlen($chunk);
+        if ($current && (count($current) >= $maxItems || ($bytes + $chunkBytes) > $maxBytes)) {
+          $groups[] = implode("\n", $current);
+          $current = [];
+          $bytes = 0;
+        }
+        $current[] = $chunk;
+        $bytes += $chunkBytes;
+      }
+
+      if ($current) {
+        $groups[] = implode("\n", $current);
+      }
+
+      return $groups;
+    }
+
+    private function _renderResumePDFParts($styles, $resumeBody, $workDir, $jobId, $no_rawat, $nosep)
+    {
+      $chunks = $this->_buildResumeRenderChunks($resumeBody);
+      if (!$chunks) {
+        return ['status' => false, 'message' => 'Resume tidak menghasilkan chunk render', 'files' => []];
+      }
+
+      $groups = $this->_groupPDFHTMLChunks($chunks, 160000, 8);
+      $files = [];
+      $total = count($groups);
+
+      foreach ($groups as $index => $groupBody) {
+        $number = $index + 1;
+        $sentinel = 'VEDIKA_RESUME_CHUNK_' . str_pad((string) $number, 3, '0', STR_PAD_LEFT)
+          . '_' . strtoupper(substr(sha1($no_rawat . '|' . $nosep . '|' . $number), 0, 12));
+        $body = $groupBody
+          . '<div style="font-size:1px;line-height:1px;color:#ffffff;">'
+          . $sentinel . '</div>';
+
+        if ($number === $total) {
+          $body .= '<div style="font-size:1px;line-height:1px;color:#ffffff;">VEDIKA_DOC_RESUME</div>';
+        }
+
+        $this->_touchPDFQueueStage(
+          $jobId,
+          'Tahap 6/9: render Resume chunk ' . $number . '/' . $total
+        );
+
+        $target = $workDir . '/resume_' . str_pad((string) $number, 3, '0', STR_PAD_LEFT) . '.pdf';
+        $temp = $workDir . '/mpdf_resume_' . str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+        $render = $this->_renderStandalonePDFPart($styles, $body, $target, $temp, $sentinel, true);
+        if (empty($render['status'])) {
+          $this->_updatePDFManifestRow(
+            $jobId, $no_rawat, $nosep, 'RESUME', false,
+            'Gagal render Resume chunk ' . $number . '/' . $total . ': ' . $render['message'],
+            $total
+          );
+          return [
+            'status' => false,
+            'message' => 'Gagal render Resume chunk ' . $number . '/' . $total . ': ' . $render['message'],
+            'files' => $files,
+            'chunk_count' => $total
+          ];
+        }
+        $files[] = $target;
+      }
+
+      $this->_updatePDFManifestRow(
+        $jobId, $no_rawat, $nosep, 'RESUME', false,
+        $total . ' chunk Resume berhasil dirender; menunggu merge final',
+        $total
+      );
+
+      return [
+        'status' => true,
+        'message' => 'Resume berhasil dirender dalam ' . $total . ' chunk',
+        'files' => $files,
+        'chunk_count' => $total
+      ];
+    }
+
+    private function _unwrapPDFExtraFieldset($html)
+    {
+      $html = trim((string) $html);
+      if (preg_match('/^<fieldset\b[^>]*>([\s\S]*)<\/fieldset>\s*$/i', $html, $match)) {
+        return trim($match[1]);
+      }
+      return $html;
+    }
+
+    private function _unwrapPDFExtraContainer($html)
+    {
+      $html = trim((string) $html);
+
+      // Legacy extra document.
+      $unwrapped = $this->_unwrapPDFExtraFieldset($html);
+      if ($unwrapped !== $html) {
+        return $unwrapped;
+      }
+
+      // Template baru membungkus dokumen kondisional dengan
+      // <div class="vedika-extra-document">. Fallback lama tidak membuka
+      // wrapper ini sehingga seluruh KFR tetap dianggap satu chunk (1/1).
+      if (preg_match('/^<div\\b([^>]*)>([\\s\\S]*)<\\/div>\\s*$/i', $html, $match)) {
+        $attrs = isset($match[1]) ? $match[1] : '';
+        if (preg_match('/\\bclass\\s*=\\s*(["\\\'])([^"\\\']*)\\1/i', $attrs, $classMatch)) {
+          $classes = preg_split('/\\s+/', trim($classMatch[2]));
+          if (in_array('vedika-extra-document', $classes, true)) {
+            return trim($match[2]);
+          }
+        }
+      }
+
+      return $html;
+    }
+
+    private function _stripVedikaExtraTemplateMarkers($html)
+    {
+      return preg_replace(
+        '/<div\\b[^>]*>\\s*VEDIKA_EXTRA_[A-Z0-9_]+\\s*<\\/div>/i',
+        '',
+        (string) $html
+      );
+    }
+
+    private function _buildExtraRenderDocuments($extrasBody)
+    {
+      $chunks = $this->_splitPDFHTMLTopLevelChunks((string) $extrasBody);
+      $documents = [];
+
+      foreach ($chunks as $chunk) {
+        $chunk = trim((string) $chunk);
+        if ($chunk === '') {
+          continue;
+        }
+
+        // BR/pagebreak/comment di antara dokumen tidak perlu dirender sendiri.
+        if (preg_match('/^(?:<br\s*\/?\s*>\s*)+$/i', $chunk) || preg_match('/^<pagebreak\b/i', $chunk)) {
+          continue;
+        }
+
+        $plain = trim(strip_tags($chunk));
+        if ($plain === '' && !preg_match('/<(fieldset|table|img|barcode|div)\b/i', $chunk)) {
+          continue;
+        }
+
+        // Karena setiap dokumen nanti menjadi PDF sendiri, page-break-before pada
+        // fieldset tidak dibutuhkan. Melepas wrapper juga menghindari mPDF
+        // berhenti pada fieldset kompleks/malformed sebelum sentinel akhir.
+        $documents[] = $this->_unwrapPDFExtraFieldset($chunk);
+      }
+
+      return $documents;
+    }
+
+    private function _renderExtraPDFDocumentFallback($styles, $documentBody, $workDir, $jobId, $no_rawat, $docNumber, $docTotal)
+    {
       /*
-       * Untuk awal, boleh tetap pakai _renderPDFKlaimHTML($id).
-       * Tapi paling aman nanti arahkan ke template pdfklaim_generate.html
-       * yang tidak memakai iframe.
+       * Fallback ini sengaja menulis potongan HTML SATU PER SATU ke instance
+       * mPDF yang sama. Dengan begitu KFR tetap menjadi satu dokumen/page flow,
+       * tetapi parser tidak harus menelan satu blok HTML besar sekaligus.
+       *
+       * Bug sebelumnya: template baru memakai wrapper
+       * <div class="vedika-extra-document">. Fallback hanya membuka fieldset,
+       * sehingga KFR tetap satu chunk dan log selalu menunjukkan bagian 1/1.
        */
-        $html = $this->_renderPDFKlaimGenerateHTML($id);
-        
-        // buang script
-        $html = preg_replace('/<script\b[^>]*>[\s\S]*?<\/script>/i', '', $html);
-        
-        // buang link stylesheet eksternal
-        $html = preg_replace('/<link\b[^>]*>/i', '', $html);
-        
-        // buang tombol cetak
-        $html = preg_replace('/<a\b[^>]*id=["\']printPageButton["\'][^>]*>[\s\S]*?<\/a>/i', '', $html);
-        
-        // ganti semua iframe dengan keterangan
-        $html = preg_replace(
-          '/<iframe\b[^>]*><\/iframe>/i',
-          '<div style="border:1px solid #999;padding:10px;margin:10px 0;">
-             Berkas PDF eksternal tidak dirender di file ini.
-           </div>',
-          $html
-        );
-        
-        // buang class container dari body
-        $html = str_replace('class="container"', '', $html);
-        
-        // perbaiki page break pertama agar tidak langsung halaman kosong
-        $html = preg_replace(
-          '/<fieldset style="page-break-before:always;">/i',
-          '<fieldset style="page-break-before:auto;">',
-          $html,
-          1
-        );
-        
-        // WAJIB sebelum WriteHTML
-        $html = $this->_cleanHTMLForMpdf($html);
-    
-      $dir = WEBAPPS_PATHX . '/berkasrawat/pages/upload/klaim';
-    
-      if (!is_dir($dir)) {
-        mkdir($dir, 0775, true);
+      $documentBody = $this->_unwrapPDFExtraContainer($documentBody);
+      $documentBody = $this->_stripVedikaExtraTemplateMarkers($documentBody);
+      $topChunks = $this->_splitPDFHTMLTopLevelChunks($documentBody);
+      $smallChunks = [];
+
+      foreach ($topChunks as $chunk) {
+        $chunk = trim((string) $chunk);
+        if ($chunk === '' || preg_match('/^<pagebreak\\b/i', $chunk)) {
+          continue;
+        }
+
+        // Jangan jadikan marker internal template sebagai dokumen/chunk.
+        $plain = trim(strip_tags($chunk));
+        if ($plain !== '' && preg_match('/^VEDIKA_EXTRA_[A-Z0-9_]+$/i', $plain)) {
+          continue;
+        }
+
+        if (preg_match('/^<table\\b/i', $chunk)) {
+          foreach ($this->_splitLargePDFTableChunk($chunk, 12, 45000) as $tablePart) {
+            if (trim($tablePart) !== '') {
+              $smallChunks[] = $tablePart;
+            }
+          }
+          continue;
+        }
+
+        $smallChunks[] = $chunk;
       }
-    
-      $nosep = isset($vedika['nosep']) ? $vedika['nosep'] : $this->_getSEPInfo('no_sep', $no_rawat);
+
+      if (!$smallChunks) {
+        return ['status' => false, 'message' => 'Fallback tidak menghasilkan potongan HTML', 'files' => []];
+      }
+
+      $target = $workDir . '/extra_' . str_pad((string) $docNumber, 3, '0', STR_PAD_LEFT)
+        . '_chunked.pdf';
+      $temp = $workDir . '/mpdf_extra_' . str_pad((string) $docNumber, 3, '0', STR_PAD_LEFT)
+        . '_chunked';
+      $sentinel = 'VEDIKA_EXTRA_DOC_'
+        . str_pad((string) $docNumber, 3, '0', STR_PAD_LEFT)
+        . '_CHUNKED_' . strtoupper(substr(sha1($no_rawat . '|extra-doc-chunked|' . $docNumber), 0, 12));
+
+      try {
+        $mpdf = $this->_newVedikaMpdf($temp, true);
+
+        // CSS ditulis sekali, lalu setiap blok dokumen ditulis terpisah.
+        if (trim((string) $styles) !== '') {
+          $mpdf->WriteHTML((string) $styles);
+        }
+
+        $chunkTotal = count($smallChunks);
+        foreach ($smallChunks as $chunkIndex => $chunk) {
+          $chunkNumber = $chunkIndex + 1;
+          $this->_touchPDFQueueStage(
+            $jobId,
+            'Tahap 7/9: fallback chunked dokumen kondisional ' . $docNumber . '/' . $docTotal
+            . ' blok ' . $chunkNumber . '/' . $chunkTotal
+          );
+          $mpdf->WriteHTML($this->_pdfNormalizeStandaloneBody($chunk));
+        }
+
+        // Marker dibuat sedikit lebih besar agar Ghostscript txtwrite tidak
+        // mengabaikannya, tetapi tetap putih sehingga tidak terlihat pengguna.
+        $mpdf->WriteHTML(
+          '<div style="font-size:6px;line-height:6px;color:#ffffff;">'
+          . $sentinel . '</div>'
+        );
+        $mpdf->Output($target, \Mpdf\Output\Destination::FILE);
+        unset($mpdf);
+      } catch (\Throwable $e) {
+        return [
+          'status' => false,
+          'message' => 'Fallback chunked exception: ' . $e->getMessage(),
+          'files' => []
+        ];
+      }
+
+      if (!is_file($target) || filesize($target) <= 0) {
+        return ['status' => false, 'message' => 'Fallback chunked tidak membentuk PDF', 'files' => []];
+      }
+
+      $verified = $this->_pdfContainsRenderSentinel($target, $sentinel);
+      if ($verified === false) {
+        // Sentinel boleh hilang dari txtwrite. Cek isi nyata dokumen lengkap.
+        $tailVerified = $this->_pdfVerifyHtmlTailRendered($target, $documentBody);
+        if ($tailVerified !== true) {
+          $pdfText = $this->_pdfExtractVerificationText($target);
+          $tailInfo = '';
+          if (is_string($pdfText) && trim($pdfText) !== '') {
+            $normalized = $this->_pdfNormalizeVerificationText($pdfText);
+            if (strlen($normalized) > 180) {
+              $normalized = substr($normalized, -180);
+            }
+            $tailInfo = '; txt-tail=' . $normalized;
+          }
+          return [
+            'status' => false,
+            'message' => 'Fallback chunked selesai menulis ' . count($smallChunks)
+              . ' blok tetapi verifikasi akhir belum lolos' . $tailInfo,
+            'files' => []
+          ];
+        }
+      }
+
+      return [
+        'status' => true,
+        'message' => 'Fallback chunked berhasil menulis ' . count($smallChunks) . ' blok dalam satu PDF',
+        'files' => [$target]
+      ];
+    }
+
+    private function _renderExtraPDFParts($styles, $extrasBody, $workDir, $jobId, $no_rawat, $nosep)
+    {
+      $extrasBody = trim((string) $extrasBody);
+      if ($extrasBody === '') {
+        return ['status' => true, 'message' => 'Tidak ada dokumen HTML kondisional', 'files' => [], 'chunk_count' => 0];
+      }
+
+      // Jangan lagi menggabungkan beberapa dokumen kondisional menjadi satu
+      // HTML besar. Setiap fieldset/dokumen dirender dengan mPDF fresh.
+      $documents = $this->_buildExtraRenderDocuments($extrasBody);
+      if (!$documents) {
+        return ['status' => true, 'message' => 'Tidak ada dokumen HTML kondisional', 'files' => [], 'chunk_count' => 0];
+      }
+
+      $files = [];
+      $total = count($documents);
+      $renderedParts = 0;
+
+      foreach ($documents as $index => $documentBody) {
+        $number = $index + 1;
+        $sentinel = 'VEDIKA_EXTRA_DOC_' . str_pad((string) $number, 3, '0', STR_PAD_LEFT)
+          . '_' . strtoupper(substr(sha1($no_rawat . '|extra-doc|' . $number), 0, 12));
+        $body = $documentBody
+          . '<div style="font-size:1px;line-height:1px;color:#ffffff;">'
+          . $sentinel . '</div>';
+
+        $this->_touchPDFQueueStage(
+          $jobId,
+          'Tahap 7/9: render dokumen kondisional ' . $number . '/' . $total
+        );
+
+        $target = $workDir . '/extra_' . str_pad((string) $number, 3, '0', STR_PAD_LEFT) . '.pdf';
+        $temp = $workDir . '/mpdf_extra_' . str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+        $render = $this->_renderStandalonePDFPart($styles, $body, $target, $temp, $sentinel, true);
+
+        if (empty($render['status'])) {
+          // Beberapa template legacy (terutama KFR/rehab) dapat merender isi
+          // lengkap tetapi marker HTML 1px tidak ikut terbaca oleh Ghostscript
+          // txtwrite. Sebelum memecah ulang, verifikasi frasa nyata dari ekor
+          // dokumen. Jika ekor ada, PDF dianggap lengkap dan aman diteruskan.
+          $tailVerified = $this->_pdfVerifyHtmlTailRendered($target, $documentBody);
+          if ($tailVerified === true) {
+            $this->_touchPDFQueueStage(
+              $jobId,
+              'Tahap 7/9: dokumen kondisional ' . $number . '/' . $total
+              . ' lengkap (verifikasi isi akhir)'
+            );
+            $files[] = $target;
+            $renderedParts++;
+            continue;
+          }
+
+          // Satu dokumen tertentu masih terlalu kompleks/panjang. Pecah hanya
+          // dokumen tersebut; dokumen kondisional lain tidak perlu diulang.
+          @unlink($target);
+          $fallback = $this->_renderExtraPDFDocumentFallback(
+            $styles, $documentBody, $workDir, $jobId, $no_rawat, $number, $total
+          );
+          if (empty($fallback['status'])) {
+            return [
+              'status' => false,
+              'message' => 'Gagal render dokumen kondisional ' . $number . '/' . $total
+                . '. Render awal: ' . $render['message'] . '; ' . $fallback['message'],
+              'files' => $files,
+              'chunk_count' => $total,
+              'failed_document' => $number
+            ];
+          }
+          foreach ($fallback['files'] as $fallbackFile) {
+            $files[] = $fallbackFile;
+            $renderedParts++;
+          }
+          continue;
+        }
+
+        $files[] = $target;
+        $renderedParts++;
+      }
+
+      return [
+        'status' => true,
+        'message' => 'Dokumen kondisional berhasil dirender: ' . $total
+          . ' dokumen menjadi ' . $renderedParts . ' bagian PDF',
+        'files' => $files,
+        'chunk_count' => $renderedParts,
+        'document_count' => $total
+      ];
+    }
+
+    private function _createPDFKlaimFile($no_rawat, $jobId = null)
+    {
+      $id = $this->convertNorawat($no_rawat);
+      $vedika = $this->db('mlite_vedika')->where('no_rawat', $no_rawat)->oneArray();
+
+      if (!$vedika) {
+        return ['status' => false, 'message' => 'Data Vedika tidak ditemukan', 'no_rawat' => $no_rawat];
+      }
+      if ($vedika['status'] != 'Pengajuan') {
+        return ['status' => false, 'message' => 'Status klaim belum Lengkap', 'no_rawat' => $no_rawat];
+      }
+
+      $nosep = isset($vedika['nosep']) ? trim((string) $vedika['nosep']) : trim((string) $this->_getSEPInfo('no_sep', $no_rawat));
       $safeSep = preg_replace('/[^A-Za-z0-9_\-]/', '', $nosep);
-    
+      if ($safeSep === '') {
+        return ['status' => false, 'message' => 'Nomor SEP kosong/tidak valid untuk nama PDF klaim', 'no_rawat' => $no_rawat];
+      }
+
+      $this->_touchPDFQueueStage($jobId, 'Tahap 1/9: menyiapkan manifest dan data pasien');
+      $manifestInit = $this->_initializePDFManifestCore($jobId, $no_rawat, $nosep);
+      if (empty($manifestInit['status'])) {
+        return [
+          'status' => false,
+          'message' => $manifestInit['message'],
+          'no_rawat' => $no_rawat,
+          'nosep' => $nosep,
+          'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+        ];
+      }
+
+      $this->_touchPDFQueueStage($jobId, 'Tahap 2/9: render template sumber');
+      $templateRenderLock = 'vedika_pdf_template_render';
+      if (!$this->_acquirePDFQueueLock($templateRenderLock, 60)) {
+        return [
+          'status' => false,
+          'message' => 'Timeout menunggu lock render template PDF',
+          'no_rawat' => $no_rawat,
+          'nosep' => $nosep
+        ];
+      }
+
+      try {
+        $html = $this->_renderPDFKlaimGenerateHTML($id);
+      } finally {
+        $this->_releasePDFQueueLock($templateRenderLock);
+      }
+
+      $hasExpectedIdentity = ($nosep !== '' && strpos($html, $nosep) !== false) || strpos($html, $no_rawat) !== false;
+      if (!$hasExpectedIdentity) {
+        return [
+          'status' => false,
+          'message' => 'Render PDF tidak memuat identitas pasien/SEP yang sedang diproses',
+          'no_rawat' => $no_rawat,
+          'nosep' => $nosep,
+          'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+        ];
+      }
+
+      $html = $this->_preparePDFKlaimRenderedHTML($html);
+      $styles = $this->_pdfExtractStyleHTML($html);
+      $body = $this->_pdfExtractBodyHTML($html);
+
+      // Sanitasi global free-text hasil render. Ini membuat karakter seperti
+      // <, > dan & aman untuk mPDF tanpa escape manual di setiap field template.
+      $body = $this->_pdfSanitizeRenderedBodySpecialChars($body);
+
+      $requiredSections = [
+        'SEP' => ['VEDIKA_DOC_SEP_START', 'VEDIKA_DOC_SEP'],
+        'BILLING' => ['VEDIKA_DOC_BILLING_START', 'VEDIKA_DOC_BILLING'],
+        'RESUME' => ['VEDIKA_DOC_RESUME_START', 'VEDIKA_DOC_RESUME'],
+      ];
+      $sectionBodies = [];
+      foreach ($requiredSections as $code => $markers) {
+        $sectionBodies[$code] = $this->_pdfExtractMarkedSection($body, $markers[0], $markers[1]);
+        if ($sectionBodies[$code] === null) {
+          $this->_updatePDFManifestRow(
+            $jobId, $no_rawat, $nosep, $code, false,
+            'Marker start/end bagian wajib tidak lengkap pada HTML sumber'
+          );
+          return [
+            'status' => false,
+            'message' => 'Bagian wajib ' . $code . ' tidak dapat dipisahkan dari HTML sumber',
+            'no_rawat' => $no_rawat,
+            'nosep' => $nosep,
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+        $this->_updatePDFManifestRow(
+          $jobId, $no_rawat, $nosep, $code, false,
+          'Sumber HTML bagian tersedia; menunggu render per dokumen'
+        );
+      }
+      $extrasBody = $this->_pdfBodyAfterMarkedSection($body, 'VEDIKA_DOC_RESUME_START', 'VEDIKA_DOC_RESUME');
+
+      $dir = WEBAPPS_PATHX . '/berkasrawat/pages/upload/klaim';
+      if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return ['status' => false, 'message' => 'Folder output klaim tidak dapat dibuat', 'path' => $dir];
+      }
+
       $filename = $safeSep . '.pdf';
       $fullPath = $dir . '/' . $filename;
       $lokasi_file = 'pages/upload/klaim/' . $filename;
-    
-      try {
-          $mpdf = new \Mpdf\Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'orientation' => 'P',
-            'margin_left' => 8,
-            'margin_right' => 8,
-            'margin_top' => 8,
-            'margin_bottom' => 8,
-            'tempDir' => sys_get_temp_dir(),
-        
-            // bantu kecilkan image
-            'img_dpi' => 96,
-            'jpeg_quality' => 70,
-          ]);
-        
-          $mpdf->SetCompression(true);
-          $mpdf->simpleTables = true;
-          $mpdf->packTableData = true;
-          $mpdf->shrink_tables_to_fit = 1;
-          $mpdf->use_kwt = false;
-          $mpdf->keep_table_proportions = true;
-          $mpdf->tableMinSizePriority = true;
-          $mpdf->setAutoTopMargin = 'stretch';
-          $mpdf->setAutoBottomMargin = 'stretch';
+      $newFinalPath = $dir . '/new_' . getmypid() . '_' . $filename;
 
-          // Worker CLI tidak selalu dapat mengambil logo melalui URL aplikasi.
-          // Daftarkan file lokal langsung ke mPDF agar stabil di Linux/Apache.
-          $rsudLogoPath = WEBAPPS_PATHX . '/TTD/logo.png';
-          if (is_readable($rsudLogoPath)) {
-            $mpdf->imageVars['rsud_logo'] = file_get_contents($rsudLogoPath);
-          }
-          
-        
-          $basePdfPath = $dir . '/base_' . $filename;
-          $inacbgPdfPath = $dir . '/inacbg_' . $filename;
-          $newFinalPath = $dir . '/new_' . $filename;
-        
-          /*
-           * Penting:
-           * PDF utama hasil mPDF disimpan ke basePdfPath,
-           * bukan langsung ke fullPath.
-           */
-          $mpdf->WriteHTML($html);
-          $mpdf->Output($basePdfPath, \Mpdf\Output\Destination::FILE);
-        
-          if (!file_exists($basePdfPath) || filesize($basePdfPath) <= 0) {
-            return [
-              'status' => false,
-              'message' => 'File PDF utama gagal dibuat',
-              'no_rawat' => $no_rawat,
-              'path' => $basePdfPath
-            ];
-          }
-        
-          $mergeFiles = [];
-          $skippedFiles = [];
-        
-          /*
-           * 1. Ambil PDF INACBG dari e-Klaim
-           */
-          $inacbgResult = $this->_saveKlaimInacbgPDF($nosep, $inacbgPdfPath);
-        
-          if ($inacbgResult['status']) {
-            $mergeFiles[] = $inacbgPdfPath;
-          } else {
-            $skippedFiles[] = [
-              'jenis' => 'INACBG',
-              'message' => isset($inacbgResult['message']) ? $inacbgResult['message'] : 'PDF INACBG tidak tersedia'
-            ];
-          }
-        
-          /*
-           * 2. PDF utama hasil mPDF
-           */
-          $mergeFiles[] = $basePdfPath;
-        
-          /*
-           * 3. PDF SEP upload kode 001
-           */
-          $berkas_sep_pdf = $this->db('berkas_digital_perawatan')
-            ->where('no_rawat', $no_rawat)
-            ->where('kode', '001')
-            ->like('lokasi_file', '%pdf')
-            ->toArray();
-        
-          foreach ($berkas_sep_pdf as $berkas) {
-            $path = WEBAPPS_PATHX . '/berkasrawat/' . $berkas['lokasi_file'];
-        
-            if (file_exists($path) && filesize($path) > 0) {
-              $mergeFiles[] = $path;
-            } else {
-              $skippedFiles[] = [
-                'jenis' => 'SEP PDF',
-                'lokasi_file' => $berkas['lokasi_file'],
-                'path' => $path,
-                'message' => 'File tidak ditemukan di server mLITE'
-              ];
+      $jobTempDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+        . DIRECTORY_SEPARATOR . 'mlite-vedika-pdf'
+        . DIRECTORY_SEPARATOR . sha1($no_rawat . '|' . $nosep . '|' . getmypid() . '|' . microtime(true));
+      if (!is_dir($jobTempDir) && !mkdir($jobTempDir, 0770, true) && !is_dir($jobTempDir)) {
+        return ['status' => false, 'message' => 'Gagal membuat temp directory PDF yang terisolasi', 'path' => $jobTempDir];
+      }
+
+      try {
+        $mergeFiles = [];
+        $skippedFiles = [];
+        $coreVerify = [];
+
+        // Asset berkas digital/radiologi berada di server WEBAPPS_URL, bukan di
+        // filesystem mLITE ini. Cache remote terlebih dahulu dengan retry lalu
+        // rewrite src ke temp lokal agar mPDF tidak melakukan fetch HTTP sendiri.
+        $remoteAssetDir = $jobTempDir . '/remote_assets';
+        $remoteAssetFailures = [];
+        foreach ($sectionBodies as $sectionCode => $sectionBody) {
+          $assetCache = $this->_pdfCacheRemoteWebappsImageSources($sectionBody, $remoteAssetDir);
+          $sectionBodies[$sectionCode] = $assetCache['html'];
+          if (!empty($assetCache['missing_remote'])) {
+            foreach ($assetCache['missing_remote'] as $failure) {
+              $failure['section'] = $sectionCode;
+              $remoteAssetFailures[] = $failure;
             }
           }
-        
-          /*
-           * 4. PDF upload lainnya.
-           * Jangan ikutkan kode KLM supaya hasil generate tidak merge dirinya sendiri.
-           */
-          $tempDownloadedFiles = [];
-          $berkas_digital_pdf = $this->db('berkas_digital_perawatan')
-              ->where('no_rawat', $no_rawat)
-              ->where('kode', '!=', '001')
-              ->where('kode', '!=', 'KLM')
-              ->like('lokasi_file', '%pdf')
-              ->toArray();
-            
-            foreach ($berkas_digital_pdf as $berkas) {
-              /*
-               * 1. Coba cari dulu di server mLITE lokal
-               */
-              $localPath = WEBAPPS_PATHX . '/berkasrawat/' . $berkas['lokasi_file'];
-            
-              if (file_exists($localPath) && filesize($localPath) > 0) {
-                $mergeFiles[] = $localPath;
-                continue;
-              }
-            
-              /*
-               * 2. Kalau tidak ada lokal, download dari server utama WEBAPPS_URL
-               */
-              $remoteResult = $this->_downloadRemotePDFToLocal(
-                $berkas['lokasi_file'],
-                $dir,
-                'remote_' . $berkas['kode']
-              );
-            
-              if ($remoteResult['status']) {
-                $mergeFiles[] = $remoteResult['path'];
-                $tempDownloadedFiles[] = $remoteResult['path'];
-              } else {
-                $skippedFiles[] = [
-                  'jenis' => 'PDF Upload Remote',
-                  'kode' => $berkas['kode'],
-                  'lokasi_file' => $berkas['lokasi_file'],
-                  'local_path' => $localPath,
-                  'remote' => $remoteResult,
-                  'message' => 'File tidak ditemukan lokal dan gagal download dari server utama'
-                ];
-              }
-            }
-        
-          /*
-           * Merge + compress ke file sementara.
-           */
-          $mergeResult = $this->_mergeCompressPDFs($mergeFiles, $newFinalPath);
-        
-          if (!$mergeResult['status']) {
-            return [
-              'status' => false,
-              'message' => 'Gagal merge PDF',
-              'no_rawat' => $no_rawat,
-              'merge' => $mergeResult,
-              'skipped_files' => $skippedFiles
-            ];
+        }
+        $extraAssetCache = $this->_pdfCacheRemoteWebappsImageSources($extrasBody, $remoteAssetDir);
+        $extrasBody = $extraAssetCache['html'];
+        if (!empty($extraAssetCache['missing_remote'])) {
+          foreach ($extraAssetCache['missing_remote'] as $failure) {
+            $failure['section'] = 'EXTRA';
+            $remoteAssetFailures[] = $failure;
           }
-        
-          if (!file_exists($newFinalPath) || filesize($newFinalPath) <= 0) {
-            return [
-              'status' => false,
-              'message' => 'File hasil merge tidak terbentuk',
-              'no_rawat' => $no_rawat,
-              'path' => $newFinalPath,
-              'merge' => $mergeResult,
-              'skipped_files' => $skippedFiles
-            ];
+        }
+        if ($remoteAssetFailures) {
+          $sample = [];
+          foreach (array_slice($remoteAssetFailures, 0, 5) as $failure) {
+            $sample[] = (isset($failure['url']) ? $failure['url'] : '')
+              . (isset($failure['message']) ? ' (' . $failure['message'] . ')' : '');
           }
-        
-          /*
-           * Replace file lama hanya setelah file baru berhasil dibuat.
-           */
-          if (file_exists($fullPath)) {
-            unlink($fullPath);
-          }
-        
-          rename($newFinalPath, $fullPath);
-        
-          /*
-           * Bersihkan file sementara.
-           */
-          if (file_exists($basePdfPath)) {
-            unlink($basePdfPath);
-          }
-        
-          if (file_exists($inacbgPdfPath)) {
-            unlink($inacbgPdfPath);
-          }
-          
-          foreach ($tempDownloadedFiles as $tempFile) {
-              if (file_exists($tempFile)) {
-                unlink($tempFile);
-              }
-            }
-        
-          if (!file_exists($fullPath) || filesize($fullPath) <= 0) {
-            return [
-              'status' => false,
-              'message' => 'File PDF final gagal dibuat di server mLITE',
-              'no_rawat' => $no_rawat,
-              'path' => $fullPath
-            ];
-          }
-        
-          /*
-           * Tidak perlu panggil _compressPDF lagi,
-           * karena _mergeCompressPDFs sudah merge + compress.
-           */
-          $register = $this->_registerPDFKlaim($no_rawat, $lokasi_file);
-        
-          if (!$register) {
-            return [
-              'status' => false,
-              'message' => 'PDF dibuat, tetapi gagal register ke database',
-              'no_rawat' => $no_rawat,
-              'file' => $lokasi_file,
-              'path' => $fullPath,
-              'merge' => $mergeResult,
-              'skipped_files' => $skippedFiles
-            ];
-          }
-        
           return [
-            'status' => true,
-            'message' => 'PDF klaim berhasil dibuat dan digabung',
+            'status' => false,
+            'message' => 'Berkas remote belum berhasil diambil lengkap; job akan retry agar PDF tidak kehilangan lampiran: '
+              . implode('; ', $sample),
             'no_rawat' => $no_rawat,
             'nosep' => $nosep,
-            'file' => $lokasi_file,
-            'url' => url(WEBAPPS_URLX) . '/berkasrawat/' . $lokasi_file,
-            'path' => $fullPath,
+            'remote_asset_failures' => $remoteAssetFailures,
+          ];
+        }
+
+        // 1. INACBG
+        $this->_touchPDFQueueStage($jobId, 'Tahap 3/9: menarik PDF INACBG dari e-Klaim');
+        $inacbgPdfPath = $jobTempDir . '/01_inacbg.pdf';
+        $inacbgResult = $this->_saveKlaimInacbgPDF($nosep, $inacbgPdfPath);
+        if (empty($inacbgResult['status'])) {
+          $message = isset($inacbgResult['message']) ? $inacbgResult['message'] : 'PDF INACBG tidak tersedia';
+          $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'INACBG', false, 'Gagal mengambil PDF INACBG: ' . $message, 0);
+          return [
+            'status' => false,
+            'message' => 'PDF INACBG wajib tetapi gagal diambil: ' . $message,
+            'no_rawat' => $no_rawat,
+            'nosep' => $nosep,
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+        $mergeFiles[] = $inacbgPdfPath;
+        $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'INACBG', false, 'PDF INACBG siap; menunggu merge final');
+
+        // 2. SEP
+        $this->_touchPDFQueueStage($jobId, 'Tahap 4/9: render SEP');
+        $sepPath = $jobTempDir . '/02_sep.pdf';
+        $sepRender = $this->_renderStandalonePDFPart(
+          $styles, $sectionBodies['SEP'], $sepPath, $jobTempDir . '/mpdf_sep', 'VEDIKA_DOC_SEP', false
+        );
+        if (empty($sepRender['status'])) {
+          $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'SEP', false, 'Gagal render SEP: ' . $sepRender['message']);
+          return [
+            'status' => false,
+            'message' => 'Gagal render SEP: ' . $sepRender['message'],
+            'no_rawat' => $no_rawat,
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+        $mergeFiles[] = $sepPath;
+        $coreVerify['SEP'] = $sepRender['verified'];
+        $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'SEP', false, 'SEP berhasil dirender terpisah; menunggu merge final');
+
+        // 3. Billing
+        $this->_touchPDFQueueStage($jobId, 'Tahap 5/9: render Billing');
+        $billingPath = $jobTempDir . '/03_billing.pdf';
+        $billingRender = $this->_renderStandalonePDFPart(
+          $styles, $sectionBodies['BILLING'], $billingPath, $jobTempDir . '/mpdf_billing', 'VEDIKA_DOC_BILLING', false
+        );
+        if (empty($billingRender['status'])) {
+          $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'BILLING', false, 'Gagal render Billing: ' . $billingRender['message']);
+          return [
+            'status' => false,
+            'message' => 'Gagal render Billing: ' . $billingRender['message'],
+            'no_rawat' => $no_rawat,
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+        $mergeFiles[] = $billingPath;
+        $coreVerify['BILLING'] = $billingRender['verified'];
+        $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'BILLING', false, 'Billing berhasil dirender terpisah; menunggu merge final');
+
+        // 4. Resume: selalu dipecah menjadi beberapa kelompok kecil dengan mPDF fresh.
+        $resumeRender = $this->_renderResumePDFParts(
+          $styles, $sectionBodies['RESUME'], $jobTempDir, $jobId, $no_rawat, $nosep
+        );
+        if (empty($resumeRender['status'])) {
+          return [
+            'status' => false,
+            'message' => $resumeRender['message'],
+            'no_rawat' => $no_rawat,
+            'nosep' => $nosep,
+            'render_mode' => 'per_document_resume_chunked',
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+        foreach ($resumeRender['files'] as $resumeFile) {
+          $mergeFiles[] = $resumeFile;
+        }
+        $coreVerify['RESUME'] = true;
+
+        // 5. Dokumen kondisional HTML setelah Resume tetap dipertahankan, tetapi dirender terpisah.
+        $extraRender = $this->_renderExtraPDFParts(
+          $styles, $extrasBody, $jobTempDir, $jobId, $no_rawat, $nosep
+        );
+        if (empty($extraRender['status'])) {
+          return [
+            'status' => false,
+            'message' => $extraRender['message'],
+            'no_rawat' => $no_rawat,
+            'nosep' => $nosep,
+            'render_mode' => 'per_document_resume_chunked',
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+        foreach ($extraRender['files'] as $extraFile) {
+          $mergeFiles[] = $extraFile;
+        }
+
+        // 6. Berkas upload PDF tambahan, selain SEP(001) dan KLM.
+        $this->_touchPDFQueueStage($jobId, 'Tahap 7b/9: menyiapkan berkas upload PDF');
+        $berkasDigitalPdf = $this->db('berkas_digital_perawatan')
+          ->where('no_rawat', $no_rawat)
+          ->where('kode', '!=', '001')
+          ->where('kode', '!=', 'KLM')
+          ->like('lokasi_file', '%pdf')
+          ->toArray();
+
+        foreach ($berkasDigitalPdf as $berkas) {
+          // Selain KLM, berkas upload adalah canonical di server WEBAPPS_URL.
+          // Jangan memakai copy lokal yang mungkin tidak ada/stale.
+          $remoteResult = $this->_downloadRemotePDFToLocal(
+            $berkas['lokasi_file'],
+            $jobTempDir,
+            'remote_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $berkas['kode'])
+          );
+          if (empty($remoteResult['status'])) {
+            return [
+              'status' => false,
+              'message' => 'Berkas PDF upload remote gagal diambil; PDF klaim tidak dipublish agar tidak lengkap: '
+                . (isset($berkas['lokasi_file']) ? $berkas['lokasi_file'] : '')
+                . ' - ' . (isset($remoteResult['message']) ? $remoteResult['message'] : 'download gagal'),
+              'no_rawat' => $no_rawat,
+              'nosep' => $nosep,
+              'remote_pdf' => $remoteResult,
+            ];
+          }
+          $mergeFiles[] = $remoteResult['path'];
+        }
+
+        // 7. Merge final.
+        $this->_touchPDFQueueStage($jobId, 'Tahap 8/9: merge dan validasi PDF final');
+        $mergeResult = $this->_mergeCompressPDFs($mergeFiles, $newFinalPath);
+        if (empty($mergeResult['status'])) {
+          return [
+            'status' => false,
+            'message' => 'Gagal merge PDF final',
+            'no_rawat' => $no_rawat,
             'merge' => $mergeResult,
             'skipped_files' => $skippedFiles
           ];
-        
-        } catch (\Throwable $e) {
+        }
+
+        if (!is_file($newFinalPath) || filesize($newFinalPath) <= 0) {
+          return ['status' => false, 'message' => 'File hasil merge tidak terbentuk', 'path' => $newFinalPath];
+        }
+
+        // Sanitasi final untuk validator upload BPJS. Ghostscript dapat tetap
+        // mempertahankan OpenAction non-JavaScript (mis. initial page/zoom),
+        // sementara validator BPJS menolak token /OpenAction secara mutlak.
+        $this->_touchPDFQueueStage($jobId, 'Tahap 8b/9: sanitasi PDF final untuk BPJS');
+        $bpjsSafe = $this->_sanitizePDFForBPJS($newFinalPath);
+        if (empty($bpjsSafe['status'])) {
           return [
             'status' => false,
-            'message' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'no_rawat' => $no_rawat
+            'message' => 'PDF final gagal sanitasi BPJS: ' . $bpjsSafe['message'],
+            'path' => $newFinalPath,
+            'bpjs_sanitize' => $bpjsSafe
           ];
         }
+
+        $pdfHeader = file_get_contents($newFinalPath, false, null, 0, 5);
+        $pdfSize = filesize($newFinalPath);
+        $tailLength = min(4096, $pdfSize);
+        $fh = fopen($newFinalPath, 'rb');
+        $pdfTail = '';
+        if ($fh) {
+          if ($tailLength > 0) {
+            fseek($fh, -$tailLength, SEEK_END);
+            $pdfTail = fread($fh, $tailLength);
+          }
+          fclose($fh);
+        }
+        if ($pdfHeader !== '%PDF-' || strpos($pdfTail, '%%EOF') === false) {
+          return [
+            'status' => false,
+            'message' => 'PDF final tidak lolos validasi struktur dasar',
+            'path' => $newFinalPath,
+            'size' => $pdfSize
+          ];
+        }
+
+        if (!@rename($newFinalPath, $fullPath)) {
+          return [
+            'status' => false,
+            'message' => 'Gagal publish PDF final secara atomic',
+            'source' => $newFinalPath,
+            'target' => $fullPath
+          ];
+        }
+
+        // 8. Register KLM dan finalisasi manifest.
+        $this->_touchPDFQueueStage($jobId, 'Tahap 9/9: registrasi KLM dan finalisasi manifest');
+        $register = $this->_registerPDFKlaim($no_rawat, $lokasi_file);
+        if (!$register) {
+          return [
+            'status' => false,
+            'message' => 'PDF dibuat, tetapi gagal register ke database',
+            'no_rawat' => $no_rawat,
+            'file' => $lokasi_file,
+            'path' => $fullPath,
+            'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+          ];
+        }
+
+        $this->_updatePDFManifestRow($jobId, $no_rawat, $nosep, 'INACBG', true, 'Berhasil digabung ke PDF final');
+        $this->_updatePDFManifestRow(
+          $jobId, $no_rawat, $nosep, 'SEP', true,
+          $coreVerify['SEP'] === true ? 'Ter-verifikasi dan berhasil digabung ke PDF final' : 'Berhasil digabung ke PDF final'
+        );
+        $this->_updatePDFManifestRow(
+          $jobId, $no_rawat, $nosep, 'BILLING', true,
+          $coreVerify['BILLING'] === true ? 'Ter-verifikasi dan berhasil digabung ke PDF final' : 'Berhasil digabung ke PDF final'
+        );
+        $this->_updatePDFManifestRow(
+          $jobId, $no_rawat, $nosep, 'RESUME', true,
+          'Resume berhasil digabung ke PDF final dalam ' . (int) $resumeRender['chunk_count'] . ' chunk',
+          (int) $resumeRender['chunk_count']
+        );
+
+        return [
+          'status' => true,
+          'message' => 'PDF klaim berhasil dibuat dengan render per dokumen',
+          'no_rawat' => $no_rawat,
+          'nosep' => $nosep,
+          'file' => $lokasi_file,
+          'url' => url(WEBAPPS_URLX) . '/berkasrawat/' . $lokasi_file,
+          'path' => $fullPath,
+          'merge' => $mergeResult,
+          'render_mode' => 'per_document_resume_chunked',
+          'resume_chunks' => (int) $resumeRender['chunk_count'],
+          'extra_chunks' => (int) $extraRender['chunk_count'],
+          'skipped_files' => $skippedFiles,
+          'manifest' => $this->_getPDFManifestRows($jobId, $no_rawat, $nosep)
+        ];
+      } catch (\Throwable $e) {
+        return [
+          'status' => false,
+          'message' => $e->getMessage(),
+          'file' => $e->getFile(),
+          'line' => $e->getLine(),
+          'no_rawat' => $no_rawat
+        ];
+      } finally {
+        if (isset($jobTempDir) && is_dir($jobTempDir)) {
+          try {
+            $it = new \RecursiveIteratorIterator(
+              new \RecursiveDirectoryIterator($jobTempDir, \FilesystemIterator::SKIP_DOTS),
+              \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($it as $item) {
+              if ($item->isDir()) {
+                @rmdir($item->getPathname());
+              } else {
+                @unlink($item->getPathname());
+              }
+            }
+            @rmdir($jobTempDir);
+          } catch (\Throwable $cleanupError) {
+          }
+        }
+      }
     }
-    
+
     private function _makeQRCodeBase64($text)
     {
       if (
@@ -6537,6 +7942,10 @@ class Admin extends AdminModule
         '-sDEVICE=pdfwrite ' .
         '-dCompatibilityLevel=1.4 ' .
         '-dPDFSETTINGS=/ebook ' .
+        '-dSAFER ' .
+        '-dPrinted ' .
+        '-dPreserveAnnots=false ' .
+        '-dPreserveMarkedContent=false ' .
         '-dNOPAUSE ' .
         '-dQUIET ' .
         '-dBATCH ' .
@@ -6972,19 +8381,83 @@ class Admin extends AdminModule
       $this->_outputPDFQueueStatus($jobIds);
     }
 
+    private function _touchPDFQueueStage($jobId, $message)
+    {
+      if ($jobId === null) {
+        return;
+      }
+
+      try {
+        $stmt = $this->db()->pdo()->prepare("UPDATE mlite_vedika_pdf_queue
+          SET message = ?, heartbeat_at = NOW()
+          WHERE id = ? AND status = 'processing'");
+        $stmt->execute([
+          substr((string) $message, 0, 65000),
+          (int) $jobId
+        ]);
+      } catch (\Throwable $e) {
+        // Progress/heartbeat tidak boleh menggagalkan proses PDF utama.
+      }
+    }
+
+    private function _recoverFailedPDFQueueJobs()
+    {
+      /*
+       * Kompatibilitas untuk job lama yang sudah berhenti di attempts=3.
+       * Versi baru memberi kesempatan otomatis sampai total 6 attempts.
+       * Attempts tidak direset supaya retry tetap terbatas dan tidak infinite-loop.
+       */
+      try {
+        $stmt = $this->db()->pdo()->prepare("UPDATE mlite_vedika_pdf_queue
+          SET status = 'queued',
+              message = 'Auto-retry lanjutan setelah gagal 3x; menunggu worker',
+              started_at = NULL,
+              finished_at = NULL,
+              heartbeat_at = DATE_ADD(NOW(), INTERVAL 30 SECOND)
+          WHERE status = 'failed'
+            AND attempts >= 3
+            AND attempts < 6");
+        $stmt->execute();
+      } catch (\Throwable $e) {
+        // Recovery gagal tidak boleh menghentikan worker.
+      }
+    }
+
     private function _recoverStalePDFQueueJobs()
     {
       $pdo = $this->db()->pdo();
-      $pdo->exec("UPDATE mlite_vedika_pdf_queue
-        SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'queued' END,
-            message = CASE
-              WHEN attempts >= 3 THEN 'Worker berhenti dan batas percobaan tercapai'
-              ELSE 'Dikembalikan ke antrean karena heartbeat worker kedaluwarsa'
-            END,
-            started_at = NULL,
-            heartbeat_at = NULL
+
+      /*
+       * Jangan hanya mengandalkan umur heartbeat. Worker yang dimatikan paksa
+       * melepas MySQL named lock pasien saat koneksinya putus. Job processing
+       * baru dipulihkan bila lock pasien benar-benar sudah bebas, sehingga tidak
+       * merebut job dari worker lain yang masih aktif.
+       */
+      $stale = $pdo->query("SELECT id, no_rawat, attempts
+        FROM mlite_vedika_pdf_queue
         WHERE status = 'processing'
-          AND COALESCE(heartbeat_at, started_at) < DATE_SUB(NOW(), INTERVAL 60 MINUTE)");
+          AND COALESCE(heartbeat_at, started_at) < DATE_SUB(NOW(), INTERVAL 2 MINUTE)");
+      $jobs = $stale->fetchAll(\PDO::FETCH_ASSOC);
+
+      foreach ($jobs as $job) {
+        $patientLock = 'vedika_pdf_patient_' . sha1($job['no_rawat']);
+        $check = $pdo->prepare('SELECT IS_FREE_LOCK(?)');
+        $check->execute([$patientLock]);
+        if ((int) $check->fetchColumn() !== 1) {
+          continue;
+        }
+
+        // Restart/kill worker bukan kegagalan dokumen; jangan habiskan jatah retry.
+        $recover = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+          SET status = 'queued',
+              attempts = GREATEST(attempts - 1, 0),
+              message = 'Worker terhenti/restart; job dikembalikan ke antrean',
+              started_at = NULL,
+              finished_at = NULL,
+              heartbeat_at = NULL
+          WHERE id = ? AND status = 'processing'");
+        $recover->execute([$job['id']]);
+      }
     }
 
     public function processPDFQueueOnce($workerId = '')
@@ -6995,6 +8468,7 @@ class Admin extends AdminModule
       $job = null;
 
       $this->_recoverStalePDFQueueJobs();
+      $this->_recoverFailedPDFQueueJobs();
 
       if (!$this->_acquirePDFQueueLock($claimLock, 5)) {
         return [
@@ -7008,7 +8482,10 @@ class Admin extends AdminModule
         $query = $pdo->query("SELECT *
           FROM mlite_vedika_pdf_queue
           WHERE status = 'queued'
-            AND attempts < 3
+            AND attempts < 6
+            -- Beri jeda singkat untuk job yang baru saja dikembalikan ke queue
+            -- (mis. patient lock masih dipakai worker lain), agar tidak hot-loop.
+            AND (heartbeat_at IS NULL OR heartbeat_at < DATE_SUB(NOW(), INTERVAL 5 SECOND))
           ORDER BY created_at, id
           LIMIT 1");
         $job = $query->fetch(\PDO::FETCH_ASSOC);
@@ -7050,11 +8527,19 @@ class Admin extends AdminModule
       $patientLock = 'vedika_pdf_patient_' . sha1($job['no_rawat']);
 
       if (!$this->_acquirePDFQueueLock($patientLock, 0)) {
+        /*
+         * Gagal memperoleh patient lock BUKAN kegagalan generate PDF.
+         * attempts sudah sempat +1 ketika job di-claim, jadi kembalikan lagi
+         * agar menunggu worker lain tidak menghabiskan jatah retry.
+         * heartbeat_at dipakai sebagai cooldown supaya worker tidak hot-loop.
+         */
         $reset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
           SET status = 'queued',
+              attempts = GREATEST(attempts - 1, 0),
               message = 'Menunggu proses PDF pasien yang sama',
               started_at = NULL,
-              heartbeat_at = NULL
+              finished_at = NULL,
+              heartbeat_at = NOW()
           WHERE id = ?");
         $reset->execute([$job['id']]);
 
@@ -7062,7 +8547,8 @@ class Admin extends AdminModule
           'status' => true,
           'idle' => true,
           'job_id' => (int) $job['id'],
-          'message' => 'Pasien yang sama sedang diproses worker lain'
+          'no_rawat' => $job['no_rawat'],
+          'message' => 'Pasien yang sama sedang diproses worker lain; tidak dihitung sebagai attempt'
         ];
       }
 
@@ -7072,15 +8558,46 @@ class Admin extends AdminModule
           WHERE id = ?");
         $heartbeat->execute([$job['id']]);
 
-        $result = $this->_createPDFKlaimFile($job['no_rawat']);
+        $result = $this->_createPDFKlaimFile($job['no_rawat'], (int) $job['id']);
         $success = !empty($result['status']);
         $message = isset($result['message'])
           ? $result['message']
           : ($success ? 'PDF selesai dibuat' : 'Pembuatan PDF gagal');
 
-        $finalStatus = $success ? 'done' : ($job['attempts'] >= 3 ? 'failed' : 'queued');
+        $isWatchdogTimeout = strpos((string) $message, 'VEDIKA_WATCHDOG_TIMEOUT:') === 0;
+        if (!$success && $isWatchdogTimeout) {
+          // Hang/timeout worker bukan kegagalan dokumen. Kembalikan attempt yang
+          // sempat bertambah dan beri cooldown pendek sebelum worker baru mencoba.
+          $timeoutReset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+            SET status = 'queued',
+                attempts = GREATEST(attempts - 1, 0),
+                message = ?,
+                started_at = NULL,
+                finished_at = NULL,
+                heartbeat_at = DATE_ADD(NOW(), INTERVAL 15 SECOND)
+            WHERE id = ?");
+          $timeoutReset->execute([
+            substr('Watchdog timeout; worker akan restart otomatis. ' . $message, 0, 65000),
+            $job['id']
+          ]);
+
+          return [
+            'status' => false,
+            'idle' => false,
+            'job_id' => (int) $job['id'],
+            'no_rawat' => $job['no_rawat'],
+            'message' => 'Watchdog timeout; job dikembalikan ke antrean tanpa menghabiskan attempt',
+            'result' => $result
+          ];
+        }
+
+        // Tiga attempt pertama tetap retry normal. Attempt 4-6 adalah auto-retry
+        // lanjutan dengan cooldown agar kasus berat tidak hot-loop terus menerus.
+        $finalStatus = $success ? 'done' : ($job['attempts'] >= 6 ? 'failed' : 'queued');
         if (!$success && $finalStatus === 'queued') {
-          $message .= ' (akan dicoba lagi)';
+          $message .= $job['attempts'] >= 3
+            ? ' (auto-retry lanjutan setelah cooldown)'
+            : ' (akan dicoba lagi)';
         }
 
         $finish = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
@@ -7088,13 +8605,18 @@ class Admin extends AdminModule
               message = ?,
               finished_at = CASE WHEN ? IN ('done', 'failed') THEN NOW() ELSE NULL END,
               started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
-              heartbeat_at = NOW()
+              heartbeat_at = CASE
+                WHEN ? = 'queued' AND ? >= 3 THEN DATE_ADD(NOW(), INTERVAL 5 MINUTE)
+                ELSE NOW()
+              END
           WHERE id = ?");
         $finish->execute([
           $finalStatus,
           substr((string) $message, 0, 65000),
           $finalStatus,
           $finalStatus,
+          $finalStatus,
+          $job['attempts'],
           $job['id']
         ]);
 
@@ -7107,10 +8629,37 @@ class Admin extends AdminModule
           'result' => $result
         ];
       } catch (\Throwable $e) {
-        $finalStatus = $job['attempts'] >= 3 ? 'failed' : 'queued';
         $errorMessage = $e->getMessage();
+        $isWatchdogTimeout = strpos((string) $errorMessage, 'VEDIKA_WATCHDOG_TIMEOUT:') === 0;
+
+        if ($isWatchdogTimeout) {
+          $timeoutReset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+            SET status = 'queued',
+                attempts = GREATEST(attempts - 1, 0),
+                message = ?,
+                started_at = NULL,
+                finished_at = NULL,
+                heartbeat_at = DATE_ADD(NOW(), INTERVAL 15 SECOND)
+            WHERE id = ?");
+          $timeoutReset->execute([
+            substr('Watchdog timeout; worker akan restart otomatis. ' . $errorMessage, 0, 65000),
+            $job['id']
+          ]);
+
+          return [
+            'status' => false,
+            'idle' => false,
+            'job_id' => (int) $job['id'],
+            'no_rawat' => $job['no_rawat'],
+            'message' => 'Watchdog timeout; job dikembalikan ke antrean tanpa menghabiskan attempt'
+          ];
+        }
+
+        $finalStatus = $job['attempts'] >= 6 ? 'failed' : 'queued';
         if ($finalStatus === 'queued') {
-          $errorMessage .= ' (akan dicoba lagi)';
+          $errorMessage .= $job['attempts'] >= 3
+            ? ' (auto-retry lanjutan setelah cooldown)'
+            : ' (akan dicoba lagi)';
         }
 
         $failed = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
@@ -7118,13 +8667,18 @@ class Admin extends AdminModule
               message = ?,
               finished_at = CASE WHEN ? = 'failed' THEN NOW() ELSE NULL END,
               started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
-              heartbeat_at = NOW()
+              heartbeat_at = CASE
+                WHEN ? = 'queued' AND ? >= 3 THEN DATE_ADD(NOW(), INTERVAL 5 MINUTE)
+                ELSE NOW()
+              END
           WHERE id = ?");
         $failed->execute([
           $finalStatus,
           substr($errorMessage, 0, 65000),
           $finalStatus,
           $finalStatus,
+          $finalStatus,
+          $job['attempts'],
           $job['id']
         ]);
 
@@ -7140,6 +8694,427 @@ class Admin extends AdminModule
       }
     }
     
+    private function _pdfExtractVerificationText($pdfPath)
+    {
+      if (!is_file($pdfPath) || filesize($pdfPath) <= 0) {
+        return false;
+      }
+
+      if (!function_exists('exec')) {
+        return null;
+      }
+
+      $gs = 'gs';
+      $whichOutput = [];
+      $whichCode = 0;
+      @exec('command -v gs 2>&1', $whichOutput, $whichCode);
+      if ($whichCode === 0 && !empty($whichOutput[0])) {
+        $gs = trim($whichOutput[0]);
+      }
+
+      $txtPath = tempnam(sys_get_temp_dir(), 'vedika_pdf_txt_');
+      if ($txtPath === false) {
+        return null;
+      }
+
+      $timeoutBin = '';
+      $timeoutOutput = [];
+      $timeoutCode = 1;
+      @exec('command -v timeout 2>&1', $timeoutOutput, $timeoutCode);
+      if ($timeoutCode === 0 && !empty($timeoutOutput[0])) {
+        $timeoutBin = trim($timeoutOutput[0]);
+      }
+
+      $cmd = ($timeoutBin !== '' ? escapeshellcmd($timeoutBin) . ' --signal=TERM --kill-after=10s 120s ' : '') .
+        escapeshellcmd($gs) . ' ' .
+        '-q -dNOPAUSE -dBATCH -sDEVICE=txtwrite ' .
+        '-sOutputFile=' . escapeshellarg($txtPath) . ' ' .
+        escapeshellarg($pdfPath) . ' 2>&1';
+
+      $output = [];
+      $returnCode = 0;
+      @exec($cmd, $output, $returnCode);
+
+      if ($returnCode !== 0 || !is_file($txtPath)) {
+        @unlink($txtPath);
+        return null;
+      }
+
+      $pdfText = @file_get_contents($txtPath);
+      @unlink($txtPath);
+      return $pdfText === false ? null : $pdfText;
+    }
+
+    private function _pdfContainsRenderSentinel($pdfPath, $sentinel)
+    {
+      if ($sentinel === '') {
+        return false;
+      }
+
+      $pdfText = $this->_pdfExtractVerificationText($pdfPath);
+      if ($pdfText === false) {
+        return false;
+      }
+      if ($pdfText === null) {
+        return null;
+      }
+
+      return strpos($pdfText, $sentinel) !== false;
+    }
+
+    private function _pdfNormalizeVerificationText($text)
+    {
+      $text = html_entity_decode((string) $text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      $text = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $text);
+      $text = preg_replace('/\s+/u', ' ', trim((string) $text));
+      return strtolower((string) $text);
+    }
+
+    private function _pdfVerifyHtmlTailRendered($pdfPath, $sourceHtml)
+    {
+      $pdfText = $this->_pdfExtractVerificationText($pdfPath);
+      if ($pdfText === false) {
+        return false;
+      }
+      if ($pdfText === null) {
+        return null;
+      }
+
+      $source = preg_replace('/<script\b[^>]*>[\s\S]*?<\/script>/i', ' ', (string) $sourceHtml);
+      $source = preg_replace('/<style\b[^>]*>[\s\S]*?<\/style>/i', ' ', $source);
+      $source = preg_replace('/<!--([\s\S]*?)-->/', ' ', $source);
+      $source = preg_replace('/<barcode\b[^>]*>/i', ' ', $source);
+      $source = preg_replace('/<br\s*\/?\s*>/i', ' ', $source);
+
+      /*
+       * Marker VEDIKA sengaja ditambahkan sebagai sentinel renderer. Marker
+       * tersebut justru tidak selalu dikeluarkan Ghostscript txtwrite. Jangan
+       * biarkan marker template seperti VEDIKA_EXTRA_KFR_U0045_END menjadi
+       * "isi akhir" yang harus dicari lagi di PDF, karena itu membuat fallback
+       * selalu dianggap gagal walau konten KFR sebenarnya sudah lengkap.
+       */
+      $source = preg_replace('/VEDIKA_[A-Z0-9_]+/i', ' ', $source);
+      $source = strip_tags($source);
+
+      $sourceNormalized = $this->_pdfNormalizeVerificationText($source);
+      $pdfNormalized = $this->_pdfNormalizeVerificationText($pdfText);
+      if ($sourceNormalized === '' || $pdfNormalized === '') {
+        return false;
+      }
+
+      $tokens = preg_split('/\s+/u', $sourceNormalized, -1, PREG_SPLIT_NO_EMPTY);
+      if (!$tokens) {
+        return false;
+      }
+
+      /*
+       * Validasi utama: cari frasa nyata dari bagian akhir dokumen. Karena data
+       * sudah dirender oleh template engine, token di sini adalah nama dokter,
+       * tanggal, judul footer, dsb. Bukan placeholder template.
+       */
+      $tail = array_slice($tokens, -80);
+      $candidateSizes = [12, 10, 8, 6, 5, 4];
+      foreach ($candidateSizes as $size) {
+        if (count($tail) < $size) {
+          continue;
+        }
+        for ($end = count($tail); $end >= $size; $end--) {
+          $candidateTokens = array_slice($tail, $end - $size, $size);
+          $candidate = implode(' ', $candidateTokens);
+          if (strlen($candidate) < 16) {
+            continue;
+          }
+          if (strpos($pdfNormalized, $candidate) !== false) {
+            return true;
+          }
+        }
+      }
+
+      /*
+       * Beberapa PDF mengubah urutan teks footer/tabel saat txtwrite. Sebagai
+       * verifikasi cadangan yang tetap konservatif, minta dua anchor nyata:
+       * satu dari awal dokumen dan satu dari area akhir. Ini jauh lebih aman
+       * daripada hanya menerima PDF karena file mempunyai %%EOF.
+       */
+      $head = array_slice($tokens, 0, 80);
+      $headMatched = false;
+      $tailMatched = false;
+
+      foreach ([8, 6, 5, 4] as $size) {
+        if (!$headMatched && count($head) >= $size) {
+          for ($start = 0; $start <= count($head) - $size; $start++) {
+            $candidate = implode(' ', array_slice($head, $start, $size));
+            if (strlen($candidate) >= 16 && strpos($pdfNormalized, $candidate) !== false) {
+              $headMatched = true;
+              break;
+            }
+          }
+        }
+
+        if (!$tailMatched && count($tail) >= $size) {
+          for ($start = 0; $start <= count($tail) - $size; $start++) {
+            $candidate = implode(' ', array_slice($tail, $start, $size));
+            if (strlen($candidate) >= 16 && strpos($pdfNormalized, $candidate) !== false) {
+              $tailMatched = true;
+              break;
+            }
+          }
+        }
+
+        if ($headMatched && $tailMatched) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    private function _writePDFKlaimHTMLChunked($mpdf, $html)
+    {
+      /*
+       * mPDF lebih stabil untuk dokumen panjang bila HTML diproses dalam
+       * potongan kecil. Implementasi ini sengaja tidak bergantung pada
+       * ext-dom supaya aman pada instalasi PHP minimal.
+       */
+
+      // CSS ditulis satu kali dan akan tetap berlaku pada WriteHTML berikutnya.
+      if (preg_match_all('/<style\b[^>]*>([\s\S]*?)<\/style>/i', $html, $styleMatches)) {
+        foreach ($styleMatches[1] as $css) {
+          if (trim($css) !== '') {
+            $mpdf->WriteHTML('<style>' . $css . '</style>');
+          }
+        }
+      }
+
+      if (preg_match('/<body\b[^>]*>([\s\S]*)<\/body\s*>/i', $html, $bodyMatch)) {
+        $bodyHtml = $bodyMatch[1];
+      } else {
+        $bodyHtml = preg_replace('/<head\b[^>]*>[\s\S]*?<\/head>/i', '', $html);
+        $bodyHtml = preg_replace('/<style\b[^>]*>[\s\S]*?<\/style>/i', '', $bodyHtml);
+      }
+
+      $bodyChunks = $this->_splitPDFHTMLTopLevelChunks($bodyHtml);
+
+      if (!$bodyChunks) {
+        $mpdf->WriteHTML($bodyHtml);
+        return;
+      }
+
+      foreach ($bodyChunks as $chunk) {
+        if (trim($chunk) === '') {
+          continue;
+        }
+
+        if ($this->_pdfHTMLChunkHasClass($chunk, 'div', 'resume-document')) {
+          $resumeInner = $this->_pdfHTMLOuterTagInner($chunk, 'div');
+          if ($resumeInner === null) {
+            $mpdf->WriteHTML($chunk);
+            continue;
+          }
+
+          $resumeChunks = $this->_splitPDFHTMLTopLevelChunks($resumeInner);
+          if (!$resumeChunks) {
+            $mpdf->WriteHTML($chunk);
+            continue;
+          }
+
+          foreach ($resumeChunks as $resumeChunk) {
+            if (trim($resumeChunk) === '') {
+              continue;
+            }
+
+            if ($this->_pdfHTMLChunkHasClass($resumeChunk, 'div', 'resume-section')) {
+              $sectionInner = $this->_pdfHTMLOuterTagInner($resumeChunk, 'div');
+              if ($sectionInner === null) {
+                $mpdf->WriteHTML('<div class="resume-document">' . $resumeChunk . '</div>');
+                continue;
+              }
+
+              /*
+               * Ini bagian terpenting untuk kasus resume panjang:
+               * tabel section dan setiap entry CPPT diproses sendiri-sendiri.
+               */
+              $sectionChunks = $this->_splitPDFHTMLTopLevelChunks($sectionInner);
+              if (!$sectionChunks) {
+                $mpdf->WriteHTML(
+                  '<div class="resume-document"><div class="resume-section">'
+                  . $sectionInner
+                  . '</div></div>'
+                );
+                continue;
+              }
+
+              foreach ($sectionChunks as $sectionChunk) {
+                if (trim($sectionChunk) === '') {
+                  continue;
+                }
+
+                $mpdf->WriteHTML(
+                  '<div class="resume-document"><div class="resume-section">'
+                  . $sectionChunk
+                  . '</div></div>'
+                );
+              }
+
+              continue;
+            }
+
+            $mpdf->WriteHTML('<div class="resume-document">' . $resumeChunk . '</div>');
+          }
+
+          continue;
+        }
+
+        $mpdf->WriteHTML($chunk);
+      }
+    }
+
+    private function _splitPDFHTMLTopLevelChunks($html)
+    {
+      $chunks = [];
+      $length = strlen($html);
+      if ($length === 0) {
+        return $chunks;
+      }
+
+      $voidTags = [
+        'area' => true, 'base' => true, 'br' => true, 'col' => true,
+        'embed' => true, 'hr' => true, 'img' => true, 'input' => true,
+        'link' => true, 'meta' => true, 'param' => true, 'source' => true,
+        'track' => true, 'wbr' => true,
+        // custom mPDF tags
+        'pagebreak' => true, 'barcode' => true,
+      ];
+
+      $offset = 0;
+      $depth = 0;
+      $chunkStart = null;
+      $lastTopLevelEnd = 0;
+
+      while (
+        preg_match(
+          '/<!--[\s\S]*?-->|<\/?([a-zA-Z][a-zA-Z0-9:_-]*)\b[^>]*>/',
+          $html,
+          $match,
+          PREG_OFFSET_CAPTURE,
+          $offset
+        )
+      ) {
+        $token = $match[0][0];
+        $tokenPos = $match[0][1];
+        $tokenEnd = $tokenPos + strlen($token);
+        $offset = $tokenEnd;
+
+        // Comment di level teratas tidak perlu jadi chunk sendiri.
+        if (strpos($token, '<!--') === 0) {
+          if ($depth === 0) {
+            $lastTopLevelEnd = $tokenEnd;
+          }
+          continue;
+        }
+
+        $tagName = isset($match[1][0]) ? strtolower($match[1][0]) : '';
+        if ($tagName === '') {
+          continue;
+        }
+
+        $isClosing = strpos($token, '</') === 0;
+        $isSelfClosing = substr(rtrim($token), -2) === '/>' || isset($voidTags[$tagName]);
+
+        if ($depth === 0) {
+          $textBefore = substr($html, $lastTopLevelEnd, $tokenPos - $lastTopLevelEnd);
+          if (trim($textBefore) !== '') {
+            $chunks[] = $textBefore;
+          }
+
+          if ($isClosing) {
+            // HTML tidak seimbang; simpan token agar tidak hilang.
+            $chunks[] = $token;
+            $lastTopLevelEnd = $tokenEnd;
+            continue;
+          }
+
+          if ($isSelfClosing) {
+            $chunks[] = $token;
+            $lastTopLevelEnd = $tokenEnd;
+            continue;
+          }
+
+          $chunkStart = $tokenPos;
+          $depth = 1;
+          continue;
+        }
+
+        if ($isClosing) {
+          $depth--;
+          if ($depth <= 0) {
+            $depth = 0;
+            if ($chunkStart !== null) {
+              $chunks[] = substr($html, $chunkStart, $tokenEnd - $chunkStart);
+            }
+            $chunkStart = null;
+            $lastTopLevelEnd = $tokenEnd;
+          }
+          continue;
+        }
+
+        if (!$isSelfClosing) {
+          $depth++;
+        }
+      }
+
+      if ($chunkStart !== null) {
+        // HTML tidak seimbang: jangan buang sisanya.
+        $chunks[] = substr($html, $chunkStart);
+        $lastTopLevelEnd = $length;
+      }
+
+      if ($lastTopLevelEnd < $length) {
+        $tail = substr($html, $lastTopLevelEnd);
+        if (trim($tail) !== '') {
+          $chunks[] = $tail;
+        }
+      }
+
+      return $chunks;
+    }
+
+    private function _pdfHTMLChunkHasClass($chunk, $tagName, $className)
+    {
+      if (!preg_match(
+        '/^\s*<' . preg_quote($tagName, '/') . '\b[^>]*\bclass\s*=\s*(["\'])([^"\']*)\1/i',
+        $chunk,
+        $match
+      )) {
+        return false;
+      }
+
+      $classes = preg_split('/\s+/', trim($match[2]));
+      return in_array($className, $classes, true);
+    }
+
+    private function _pdfHTMLOuterTagInner($chunk, $tagName)
+    {
+      $tagNameQuoted = preg_quote($tagName, '/');
+
+      if (!preg_match('/^\s*<' . $tagNameQuoted . '\b[^>]*>/i', $chunk, $openMatch)) {
+        return null;
+      }
+
+      if (!preg_match('/<\/' . $tagNameQuoted . '>\s*$/i', $chunk, $closeMatch, PREG_OFFSET_CAPTURE)) {
+        return null;
+      }
+
+      $openEnd = strlen($openMatch[0]);
+      $closePos = $closeMatch[0][1];
+
+      if ($closePos < $openEnd) {
+        return null;
+      }
+
+      return substr($chunk, $openEnd, $closePos - $openEnd);
+    }
+
     private function _saveKlaimInacbgPDF($nosep, $targetPath)
     {
       $request = '{
@@ -7175,6 +9150,154 @@ class Admin extends AdminModule
       ];
     } 
     
+    /**
+     * Netralisasi /OpenAction pada Catalog PDF tanpa mengubah panjang file.
+     *
+     * Beberapa validator upload BPJS menolak PDF hanya karena Catalog memiliki
+     * /OpenAction, walaupun action tersebut cuma mengatur halaman/zoom awal dan
+     * bukan JavaScript. Penggantian menggunakan nama PDF yang panjangnya sama,
+     * sehingga offset xref tidak berubah dan struktur PDF tetap valid.
+     */
+    private function _pdfNeutralizeOpenAction($path)
+    {
+      if (!is_file($path) || filesize($path) <= 0) {
+        return ['status' => false, 'message' => 'PDF sanitasi tidak ditemukan'];
+      }
+
+      $fh = @fopen($path, 'r+b');
+      if (!$fh) {
+        return ['status' => false, 'message' => 'PDF tidak dapat dibuka untuk sanitasi'];
+      }
+
+      $token = '/OpenAction';
+      $replacement = '/OpenActOff'; // sama-sama 11 byte
+      $chunkSize = 1024 * 1024;
+      $overlap = strlen($token) - 1;
+      $carry = '';
+      $absoluteRead = 0;
+      $offsets = [];
+
+      while (!feof($fh)) {
+        $data = fread($fh, $chunkSize);
+        if ($data === false || $data === '') {
+          break;
+        }
+
+        $buffer = $carry . $data;
+        $bufferBase = $absoluteRead - strlen($carry);
+        $searchAt = 0;
+        while (($pos = strpos($buffer, $token, $searchAt)) !== false) {
+          $absolutePos = $bufferBase + $pos;
+          if ($absolutePos >= 0) {
+            $offsets[$absolutePos] = $absolutePos;
+          }
+          $searchAt = $pos + strlen($token);
+        }
+
+        $absoluteRead += strlen($data);
+        $carry = $overlap > 0 ? substr($buffer, -$overlap) : '';
+      }
+
+      $replaced = 0;
+      foreach (array_values($offsets) as $absolutePos) {
+        // Pastikan token berada di object Catalog, bukan kebetulan muncul pada
+        // stream biner image/font.
+        $contextStart = max(0, $absolutePos - 8192);
+        fseek($fh, $contextStart, SEEK_SET);
+        $context = fread($fh, 16384);
+        if (!is_string($context) || $context === '') {
+          continue;
+        }
+
+        $relativePos = $absolutePos - $contextStart;
+        $before = substr($context, 0, $relativePos);
+        $after = substr($context, $relativePos);
+        $lastObj = strrpos($before, ' obj');
+        $lastEndObj = strrpos($before, 'endobj');
+        $nextEndObj = strpos($after, 'endobj');
+
+        if ($lastObj === false || ($lastEndObj !== false && $lastEndObj > $lastObj) || $nextEndObj === false) {
+          continue;
+        }
+
+        $objStart = max(0, $lastObj - 32);
+        $catalogObject = substr($before, $objStart) . substr($after, 0, $nextEndObj + 6);
+        if (!preg_match('/\/Type\s*\/Catalog\b/i', $catalogObject)) {
+          continue;
+        }
+
+        fseek($fh, $absolutePos, SEEK_SET);
+        if (fwrite($fh, $replacement) === strlen($replacement)) {
+          $replaced++;
+        }
+      }
+
+      fflush($fh);
+      fclose($fh);
+
+      return [
+        'status' => true,
+        'message' => $replaced > 0 ? 'OpenAction PDF dinetralisasi' : 'OpenAction tidak ditemukan',
+        'openaction_removed' => $replaced,
+      ];
+    }
+
+    private function _pdfHasRawToken($path, $token)
+    {
+      if (!is_file($path) || $token === '') {
+        return false;
+      }
+
+      $fh = @fopen($path, 'rb');
+      if (!$fh) {
+        return false;
+      }
+
+      $chunkSize = 1024 * 1024;
+      $overlap = max(0, strlen($token) - 1);
+      $carry = '';
+      $found = false;
+      while (!feof($fh)) {
+        $data = fread($fh, $chunkSize);
+        if ($data === false || $data === '') {
+          break;
+        }
+        $buffer = $carry . $data;
+        if (strpos($buffer, $token) !== false) {
+          $found = true;
+          break;
+        }
+        $carry = $overlap > 0 ? substr($buffer, -$overlap) : '';
+      }
+      fclose($fh);
+      return $found;
+    }
+
+    /**
+     * Sanitasi akhir sebelum PDF KLM dipublish/di-upload ke BPJS.
+     */
+    private function _sanitizePDFForBPJS($path)
+    {
+      $neutralize = $this->_pdfNeutralizeOpenAction($path);
+      if (empty($neutralize['status'])) {
+        return $neutralize;
+      }
+
+      if ($this->_pdfHasRawToken($path, '/OpenAction')) {
+        return [
+          'status' => false,
+          'message' => 'PDF masih mengandung /OpenAction setelah sanitasi',
+          'openaction_removed' => isset($neutralize['openaction_removed']) ? $neutralize['openaction_removed'] : 0,
+        ];
+      }
+
+      return [
+        'status' => true,
+        'message' => 'PDF lolos sanitasi OpenAction untuk BPJS',
+        'openaction_removed' => isset($neutralize['openaction_removed']) ? $neutralize['openaction_removed'] : 0,
+      ];
+    }
+
     private function _mergeCompressPDFs($sourceFiles, $outputPath)
     {
       $validFiles = [];
@@ -7200,10 +9323,22 @@ class Admin extends AdminModule
         $gs = trim($whichOutput[0]);
       }
     
-      $cmd = escapeshellcmd($gs) . ' ' .
+      $timeoutBin = '';
+      $timeoutOutput = [];
+      $timeoutCode = 1;
+      @exec('command -v timeout 2>&1', $timeoutOutput, $timeoutCode);
+      if ($timeoutCode === 0 && !empty($timeoutOutput[0])) {
+        $timeoutBin = trim($timeoutOutput[0]);
+      }
+      $cmd = ($timeoutBin !== '' ? escapeshellcmd($timeoutBin) . ' --signal=TERM --kill-after=15s 300s ' : '') .
+        escapeshellcmd($gs) . ' ' .
         '-sDEVICE=pdfwrite ' .
         '-dCompatibilityLevel=1.4 ' .
         '-dPDFSETTINGS=/ebook ' .
+        '-dSAFER ' .
+        '-dPrinted ' .
+        '-dPreserveAnnots=false ' .
+        '-dPreserveMarkedContent=false ' .
         '-dNOPAUSE ' .
         '-dQUIET ' .
         '-dBATCH ' .
@@ -7247,7 +9382,194 @@ class Admin extends AdminModule
       ];
     }
     
-    private function _buildRemoteBerkasURL($lokasi_file)
+  
+  /**
+   * Cek fisik berkas digital remote untuk daftar pasien yang sedang tampil.
+   *
+   * Berkas selain 001 (SEP upload lama) dan KLM berada di WEBAPPS_URL.
+   * Pengecekan dilakukan memakai HEAD secara paralel agar halaman Pengajuan,
+   * Pengajuaninap, dan Indexcari tetap ringan. Hanya HTTP 404/410 atau file
+   * dengan lokasi kosong/tidak valid yang dianggap "tidak ditemukan".
+   *
+   * Gangguan jaringan/timeout/HEAD tidak didukung tidak dianggap missing agar
+   * tidak menimbulkan false positive pada UI. Worker PDF tetap menjadi validasi
+   * final karena worker mengunduh dan memeriksa isi image/PDF secara penuh.
+   */
+  private function _getMissingRemoteBerkasAlertsForRows($rows)
+  {
+    if (!is_array($rows) || empty($rows)) return [];
+
+    $noRawats = [];
+    foreach ($rows as $row) {
+      if (!is_array($row) || empty($row['no_rawat'])) continue;
+      $noRawat = trim((string) $row['no_rawat']);
+      if ($noRawat !== '') $noRawats[$noRawat] = true;
+    }
+    if (empty($noRawats)) return [];
+
+    $placeholders = implode(',', array_fill(0, count($noRawats), '?'));
+    $sql = "
+      SELECT
+        b.no_rawat,
+        b.kode,
+        b.lokasi_file,
+        COALESCE(m.nama, b.kode) AS nama_berkas
+      FROM berkas_digital_perawatan b
+      LEFT JOIN master_berkas_digital m
+        ON m.kode = b.kode
+      WHERE b.no_rawat IN ($placeholders)
+        AND b.kode NOT IN ('001', 'KLM')
+    ";
+
+    try {
+      $stmt = $this->db()->pdo()->prepare($sql);
+      $stmt->execute(array_keys($noRawats));
+      $documents = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+      error_log('VEDIKA remote berkas UI check query: ' . $e->getMessage());
+      return [];
+    }
+
+    if (empty($documents)) return [];
+
+    $alerts = [];
+    $urlMap = [];
+
+    foreach ($documents as $doc) {
+      $noRawat = isset($doc['no_rawat']) ? trim((string) $doc['no_rawat']) : '';
+      $kode = isset($doc['kode']) ? trim((string) $doc['kode']) : '';
+      $lokasi = isset($doc['lokasi_file']) ? trim((string) $doc['lokasi_file']) : '';
+      $nama = isset($doc['nama_berkas']) && trim((string) $doc['nama_berkas']) !== ''
+        ? trim((string) $doc['nama_berkas'])
+        : ($kode !== '' ? $kode : 'Berkas');
+
+      if ($noRawat === '') continue;
+
+      if ($lokasi === '') {
+        $alerts[$noRawat][] = 'FILE TIDAK DITEMUKAN: ' . $nama . ' (lokasi file kosong)';
+        continue;
+      }
+
+      $url = $this->_buildRemoteBerkasURL($lokasi);
+      if (!$url) {
+        $alerts[$noRawat][] = 'FILE TIDAK DITEMUKAN: ' . $nama . ' (' . basename($lokasi) . ')';
+        continue;
+      }
+
+      if (!isset($urlMap[$url])) $urlMap[$url] = [];
+      $urlMap[$url][] = [
+        'no_rawat' => $noRawat,
+        'nama' => $nama,
+        'lokasi_file' => $lokasi,
+      ];
+    }
+
+    if (!empty($urlMap)) {
+      $probe = $this->_probeRemoteBerkasURLs(array_keys($urlMap));
+      foreach ($urlMap as $url => $refs) {
+        if (!array_key_exists($url, $probe) || $probe[$url] !== false) {
+          continue;
+        }
+
+        foreach ($refs as $ref) {
+          $label = 'FILE TIDAK DITEMUKAN: '
+            . $ref['nama']
+            . ' (' . basename($ref['lokasi_file']) . ')';
+          $alerts[$ref['no_rawat']][] = $label;
+        }
+      }
+    }
+
+    foreach ($alerts as $noRawat => $items) {
+      $alerts[$noRawat] = array_values(array_unique($items));
+    }
+
+    return $alerts;
+  }
+
+  /**
+   * Probe URL remote dengan HEAD secara paralel.
+   *
+   * return:
+   *   true  = file terjangkau (HTTP 2xx/3xx)
+   *   false = pasti tidak ditemukan (HTTP 404/410, atau Content-Length = 0)
+   *   null  = tidak dapat dipastikan (timeout, DNS, 403/405, dll)
+   */
+  private function _probeRemoteBerkasURLs($urls)
+  {
+    $result = [];
+    $urls = array_values(array_unique(array_filter(array_map('strval', (array) $urls))));
+    if (empty($urls)) return $result;
+
+    foreach ($urls as $url) $result[$url] = null;
+
+    if (!function_exists('curl_multi_init') || !function_exists('curl_init')) {
+      return $result;
+    }
+
+    // Batasi concurrency supaya halaman tetap ringan walau Indexcari 50 pasien.
+    foreach (array_chunk($urls, 24) as $batch) {
+      $mh = curl_multi_init();
+      $handles = [];
+
+      foreach ($batch as $url) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'mLITE Vedika Remote Berkas Check');
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($ch, CURLOPT_FAILONERROR, false);
+
+        curl_multi_add_handle($mh, $ch);
+        $handles[$url] = $ch;
+      }
+
+      $running = null;
+      do {
+        $status = curl_multi_exec($mh, $running);
+        if ($status !== CURLM_OK) break;
+        if ($running) {
+          $selected = curl_multi_select($mh, 1.0);
+          if ($selected === -1) usleep(10000);
+        }
+      } while ($running);
+
+      foreach ($handles as $url => $ch) {
+        $errno = curl_errno($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentLength = (float) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+        $contentType = strtolower(trim((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE)));
+
+        if ($errno === 0 && $http >= 200 && $http < 400) {
+          // Jika server secara eksplisit menyatakan panjang 0 byte atau justru
+          // mengembalikan halaman HTML (custom 404/login page), anggap berkas
+          // fisiknya tidak tersedia. Nilai -1 berarti Content-Length unknown.
+          $looksLikeHtmlError = ($contentType !== '' && strpos($contentType, 'text/html') === 0);
+          $result[$url] = ($contentLength === 0.0 || $looksLikeHtmlError) ? false : true;
+        } elseif ($http === 404 || $http === 410) {
+          $result[$url] = false;
+        } else {
+          // 403/405/5xx/timeout/DNS tidak cukup untuk menyimpulkan file hilang.
+          $result[$url] = null;
+        }
+
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+      }
+
+      curl_multi_close($mh);
+    }
+
+    return $result;
+  }
+
+  private function _buildRemoteBerkasURL($lokasi_file)
     {
       $lokasi_file = ltrim($lokasi_file, '/');
     
@@ -7262,102 +9584,296 @@ class Admin extends AdminModule
       return rtrim(WEBAPPS_URL, '/') . '/berkasrawat/' . implode('/', $parts);
     }    
     
-    private function _downloadRemotePDFToLocal($lokasi_file, $tempDir, $prefix = 'remote')
+    private function _downloadRemotePDFToLocal($lokasi_file, $tempDir, $prefix = 'remote', $maxAttempts = 3)
     {
-      if (!is_dir($tempDir)) {
-        mkdir($tempDir, 0775, true);
+      if (!is_dir($tempDir) && !mkdir($tempDir, 0775, true) && !is_dir($tempDir)) {
+        return ['status' => false, 'message' => 'Gagal membuat temp directory remote PDF', 'path' => $tempDir];
       }
-    
+
       $url = $this->_buildRemoteBerkasURL($lokasi_file);
-    
       if (!$url) {
-        return [
-          'status' => false,
-          'message' => 'Lokasi file tidak valid',
-          'lokasi_file' => $lokasi_file
-        ];
+        return ['status' => false, 'message' => 'Lokasi file tidak valid', 'lokasi_file' => $lokasi_file];
       }
-    
-      $targetPath = $tempDir . '/' . $prefix . '_' . md5($lokasi_file . microtime(true)) . '.pdf';
-    
       if (!function_exists('curl_init')) {
-        return [
-          'status' => false,
-          'message' => 'cURL belum aktif di PHP',
-          'url' => $url
-        ];
+        return ['status' => false, 'message' => 'cURL belum aktif di PHP', 'url' => $url];
       }
-    
-      $fp = fopen($targetPath, 'w+');
-    
-      if (!$fp) {
-        return [
-          'status' => false,
-          'message' => 'Gagal membuat file temporary lokal',
-          'path' => $targetPath
-        ];
-      }
-    
-      $ch = curl_init($url);
-    
-      curl_setopt($ch, CURLOPT_FILE, $fp);
-      curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-      curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-      curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
-      curl_setopt($ch, CURLOPT_USERAGENT, 'mLITE Vedika PDF Merger');
-      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-      curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-    
-      $ok = curl_exec($ch);
-      $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-      $curlError = curl_error($ch);
-    
-      curl_close($ch);
-      fclose($fp);
-    
-      if (!$ok || $httpCode < 200 || $httpCode >= 300) {
-        if (file_exists($targetPath)) {
-          unlink($targetPath);
+
+      $targetPath = rtrim($tempDir, '/\\') . '/' . $prefix . '_' . md5($lokasi_file) . '.pdf';
+      $lastHttp = 0;
+      $lastError = '';
+
+      for ($attempt = 1; $attempt <= max(1, (int) $maxAttempts); $attempt++) {
+        $fp = @fopen($targetPath, 'w+b');
+        if (!$fp) {
+          return ['status' => false, 'message' => 'Gagal membuat file temporary lokal', 'path' => $targetPath];
         }
-    
-        return [
-          'status' => false,
-          'message' => 'Gagal download PDF dari server utama',
-          'http_code' => $httpCode,
-          'curl_error' => $curlError,
-          'url' => $url
-        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'mLITE Vedika PDF Merger');
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($ch, CURLOPT_ENCODING, '');
+
+        $ok = curl_exec($ch);
+        $lastHttp = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $lastError = (string) curl_error($ch);
+        curl_close($ch);
+        fclose($fp);
+
+        $validHttp = $lastHttp >= 200 && $lastHttp < 300;
+        $validPdf = false;
+        if ($ok && $validHttp && is_file($targetPath) && filesize($targetPath) > 4) {
+          $header = file_get_contents($targetPath, false, null, 0, 4);
+          $validPdf = ($header === '%PDF');
+        }
+
+        if ($validPdf) {
+          return [
+            'status' => true,
+            'message' => 'PDF remote berhasil didownload',
+            'url' => $url,
+            'path' => $targetPath,
+            'size' => filesize($targetPath),
+            'attempt' => $attempt,
+          ];
+        }
+
+        @unlink($targetPath);
+        if ($attempt < $maxAttempts) {
+          usleep(300000 * $attempt);
+        }
       }
-    
-      if (!file_exists($targetPath) || filesize($targetPath) <= 0) {
-        return [
-          'status' => false,
-          'message' => 'File temporary kosong',
-          'url' => $url,
-          'path' => $targetPath
-        ];
-      }
-    
-      $header = file_get_contents($targetPath, false, null, 0, 4);
-    
-      if ($header !== '%PDF') {
-        unlink($targetPath);
-    
-        return [
-          'status' => false,
-          'message' => 'File dari server utama bukan PDF valid',
-          'url' => $url
-        ];
-      }
-    
+
       return [
-        'status' => true,
-        'message' => 'PDF remote berhasil didownload',
+        'status' => false,
+        'message' => 'Gagal download/validasi PDF remote setelah ' . (int) $maxAttempts . ' percobaan',
+        'http_code' => $lastHttp,
+        'curl_error' => $lastError,
         'url' => $url,
-        'path' => $targetPath,
-        'size' => filesize($targetPath)
       ];
-    }    
+    }
+
+  public function getLabHistory($id)
+  {
+    $targetNoRawat = revertNoRawat($id);
+    $target = $this->db('reg_periksa')->where('no_rawat', $targetNoRawat)->oneArray();
+    if (!$target || empty($target['no_rkm_medis']) || $target['status_lanjut'] !== 'Ranap') {
+      echo $this->draw('labhistory.html', ['lab' => ['error' => 'Registrasi tujuan tidak ditemukan.']]);
+      exit();
+    }
+
+    $pdo = $this->db()->pdo();
+    $stmt = $pdo->prepare(
+      "SELECT pl.*, COALESCE(jpl.nm_perawatan, pl.kd_jenis_prw) AS nm_perawatan,
+              rp.tgl_registrasi AS tgl_kunjungan, rp.status_lanjut
+       FROM periksa_lab pl
+       INNER JOIN reg_periksa rp ON rp.no_rawat = pl.no_rawat
+       LEFT JOIN jns_perawatan_lab jpl ON jpl.kd_jenis_prw = pl.kd_jenis_prw
+       WHERE rp.no_rkm_medis = ? AND pl.no_rawat <> ?
+       ORDER BY pl.tgl_periksa DESC, pl.jam DESC
+       LIMIT 300"
+    );
+    $stmt->execute([$target['no_rkm_medis'], $targetNoRawat]);
+    $history = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    $detailStmt = $pdo->prepare(
+      "SELECT dpl.*, COALESCE(tl.Pemeriksaan, dpl.id_template) AS nama_detail
+       FROM detail_periksa_lab dpl
+       LEFT JOIN template_laboratorium tl ON tl.id_template = dpl.id_template
+       WHERE dpl.no_rawat = ? AND dpl.kd_jenis_prw = ?
+         AND dpl.tgl_periksa = ? AND dpl.jam = ?
+       ORDER BY dpl.id_template"
+    );
+    foreach ($history as &$item) {
+      $detailStmt->execute([$item['no_rawat'], $item['kd_jenis_prw'], $item['tgl_periksa'], $item['jam']]);
+      $item['details'] = $detailStmt->fetchAll(\PDO::FETCH_ASSOC);
+      $item['selection_key'] = $this->_encodeLabHistoryKey($item);
+    }
+    unset($item);
+
+    echo $this->draw('labhistory.html', ['lab' => [
+      'target_no_rawat' => $targetNoRawat,
+      'no_rkm_medis' => $target['no_rkm_medis'],
+      'history' => $history,
+      // GET dan POST memakai route yang sama agar dikenali konsisten oleh router mLITE.
+      // Token dicetak server-side; jangan bergantung pada mlite.token milik browser.
+      'copy_url' => url([ADMIN, 'vedika', 'labhistory', $id, '?t=' . $_SESSION['token']]),
+    ]]);
+    exit();
+  }
+
+  public function postLabHistory($id)
+  {
+    // Tujuan dikunci dari parameter route, bukan mempercayai hidden input.
+    $_POST['target_no_rawat'] = revertNoRawat($id);
+    return $this->postCopyLabHistory();
+  }
+
+  public function postCopyLabHistory()
+  {
+    ob_start();
+    header('Content-Type: application/json; charset=utf-8');
+    $targetNoRawat = isset($_POST['target_no_rawat']) ? trim((string) $_POST['target_no_rawat']) : '';
+    $selected = isset($_POST['lab_items']) && is_array($_POST['lab_items']) ? $_POST['lab_items'] : [];
+    if ($targetNoRawat === '' || !$selected) {
+      return $this->_labJsonResponse(['ok' => false, 'message' => 'Pilih minimal satu pemeriksaan laboratorium.']);
+    }
+    if (count($selected) > 100) {
+      return $this->_labJsonResponse(['ok' => false, 'message' => 'Maksimal 100 pemeriksaan dalam sekali proses.']);
+    }
+
+    $pdo = $this->db()->pdo();
+    $targetStmt = $pdo->prepare("SELECT no_rkm_medis FROM reg_periksa WHERE no_rawat = ? AND status_lanjut = 'Ranap' LIMIT 1");
+    $targetStmt->execute([$targetNoRawat]);
+    $target = $targetStmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$target) {
+      return $this->_labJsonResponse(['ok' => false, 'message' => 'Registrasi tujuan tidak ditemukan.']);
+    }
+
+    $sourceStmt = $pdo->prepare(
+      'SELECT pl.* FROM periksa_lab pl
+       INNER JOIN reg_periksa rp ON rp.no_rawat = pl.no_rawat
+       WHERE rp.no_rkm_medis = ? AND pl.no_rawat = ? AND pl.no_rawat <> ?
+         AND pl.kd_jenis_prw = ? AND pl.tgl_periksa = ? AND pl.jam = ? LIMIT 1'
+    );
+    $detailStmt = $pdo->prepare(
+      'SELECT * FROM detail_periksa_lab
+       WHERE no_rawat = ? AND kd_jenis_prw = ? AND tgl_periksa = ? AND jam = ?'
+    );
+    $copiedHeaders = 0;
+    $copiedDetails = 0;
+    $processed = 0;
+    try {
+      $auditStmt = $this->_prepareLabCopyAudit();
+      $pdo->beginTransaction();
+      foreach ($selected as $encoded) {
+        $key = $this->_decodeLabHistoryKey($encoded);
+        if (!$key) continue;
+        $sourceStmt->execute([
+          $target['no_rkm_medis'], $key['no_rawat'], $targetNoRawat,
+          $key['kd_jenis_prw'], $key['tgl_periksa'], $key['jam'],
+        ]);
+        $header = $sourceStmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$header) continue;
+
+        $sourceNoRawat = $header['no_rawat'];
+        $header['no_rawat'] = $targetNoRawat;
+        $headerCount = $this->_insertLabRowIgnore('periksa_lab', $header);
+
+        $detailStmt->execute([$sourceNoRawat, $key['kd_jenis_prw'], $key['tgl_periksa'], $key['jam']]);
+        $detailCount = 0;
+        foreach ($detailStmt->fetchAll(\PDO::FETCH_ASSOC) as $detail) {
+          $detail['no_rawat'] = $targetNoRawat;
+          $detailCount += $this->_insertLabRowIgnore('detail_periksa_lab', $detail);
+        }
+        if ($auditStmt) {
+          $auditStmt->execute([
+            $targetNoRawat, $sourceNoRawat, $key['kd_jenis_prw'], $key['tgl_periksa'],
+            $key['jam'], $headerCount, $detailCount,
+            (string) $this->core->getUserInfo('username', null, true),
+          ]);
+        }
+        $copiedHeaders += $headerCount;
+        $copiedDetails += $detailCount;
+        $processed++;
+      }
+      $pdo->commit();
+      return $this->_labJsonResponse([
+        'ok' => true,
+        'message' => $processed
+          ? "Selesai. {$copiedHeaders} pemeriksaan dan {$copiedDetails} detail baru disalin. Data yang sudah ada dilewati."
+          : 'Tidak ada pemeriksaan valid yang dapat disalin.',
+      ]);
+    } catch (\Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      return $this->_labJsonResponse(['ok' => false, 'message' => 'Gagal menyalin riwayat laboratorium: ' . $e->getMessage()]);
+    }
+  }
+
+  private function _labJsonResponse(array $response)
+  {
+    if (ob_get_level() > 0) ob_clean();
+    return $this->jsonResponse($response);
+  }
+
+  private function _prepareLabCopyAudit()
+  {
+    $pdo = $this->db()->pdo();
+    try {
+      $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS `mlite_vedika_lab_copy_audit` (
+          `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+          `target_no_rawat` varchar(17) NOT NULL,
+          `source_no_rawat` varchar(17) NOT NULL,
+          `kd_jenis_prw` varchar(15) NOT NULL,
+          `source_tgl_periksa` date NOT NULL,
+          `source_jam` time NOT NULL,
+          `copied_header` tinyint unsigned NOT NULL DEFAULT 0,
+          `copied_details` int unsigned NOT NULL DEFAULT 0,
+          `copied_by` varchar(50) NOT NULL DEFAULT '',
+          `created_at` datetime NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_lab_copy_target` (`target_no_rawat`,`created_at`),
+          KEY `idx_lab_copy_source` (`source_no_rawat`,`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=latin1"
+      );
+      return $pdo->prepare(
+        'INSERT INTO mlite_vedika_lab_copy_audit
+         (target_no_rawat, source_no_rawat, kd_jenis_prw, source_tgl_periksa,
+          source_jam, copied_header, copied_details, copied_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+      );
+    } catch (\Throwable $e) {
+      // Audit tidak boleh membatalkan salinan data klaim utama.
+      error_log('Vedika lab copy audit unavailable: ' . $e->getMessage());
+      return null;
+    }
+  }
+
+  private function _encodeLabHistoryKey(array $row)
+  {
+    $json = json_encode([
+      'no_rawat' => $row['no_rawat'], 'kd_jenis_prw' => $row['kd_jenis_prw'],
+      'tgl_periksa' => $row['tgl_periksa'], 'jam' => $row['jam'],
+    ]);
+    return rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+  }
+
+  private function _decodeLabHistoryKey($encoded)
+  {
+    $encoded = strtr((string) $encoded, '-_', '+/');
+    $padding = strlen($encoded) % 4;
+    if ($padding) $encoded .= str_repeat('=', 4 - $padding);
+    $data = json_decode((string) base64_decode($encoded, true), true);
+    foreach (['no_rawat', 'kd_jenis_prw', 'tgl_periksa', 'jam'] as $field) {
+      if (!is_array($data) || empty($data[$field])) return null;
+    }
+    return $data;
+  }
+
+  private function _insertLabRowIgnore($table, array $row)
+  {
+    if (!in_array($table, ['periksa_lab', 'detail_periksa_lab'], true) || !$row) {
+      throw new \RuntimeException('Tabel laboratorium tidak diizinkan.');
+    }
+    $columns = array_keys($row);
+    foreach ($columns as $column) {
+      if (!preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        throw new \RuntimeException('Nama kolom laboratorium tidak valid.');
+      }
+    }
+    $quoted = array_map(function ($column) { return '`' . $column . '`'; }, $columns);
+    $sql = 'INSERT IGNORE INTO `' . $table . '` (' . implode(',', $quoted) . ') VALUES ('
+      . implode(',', array_fill(0, count($columns), '?')) . ')';
+    $stmt = $this->db()->pdo()->prepare($sql);
+    $stmt->execute(array_values($row));
+    return (int) $stmt->rowCount();
+  }
+
 
   public function getSetStatus($id)
   {
@@ -7500,6 +10016,175 @@ class Admin extends AdminModule
       $row[$field] = '';
     }
     return $row[$field];
+  }
+
+  /**
+   * Validasi dokumen klinis tambahan berdasarkan diagnosis/prosedur.
+   *
+   * Jika data diagnosis, prosedur, dan berkas sudah tersedia dari query daftar,
+   * kirimkan ke method ini agar tidak melakukan query ulang per pasien.
+   */
+  private function _getRequiredDocumentAlerts($noRawat, $noRkmMedis = '', $diagnosisRows = null, $procedureRows = null, $documentRows = null)
+  {
+    $noRawat = trim((string) $noRawat);
+    if ($noRawat === '') return [];
+
+    $pdo = $this->db()->pdo();
+
+    if (!is_array($diagnosisRows)) {
+      $stmt = $pdo->prepare('SELECT kd_penyakit FROM diagnosa_pasien WHERE no_rawat = ?');
+      $stmt->execute([$noRawat]);
+      $diagnosisRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+    if (!is_array($procedureRows)) {
+      $stmt = $pdo->prepare('SELECT kode FROM prosedur_pasien WHERE no_rawat = ?');
+      $stmt->execute([$noRawat]);
+      $procedureRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+    if (!is_array($documentRows)) {
+      $stmt = $pdo->prepare('SELECT kode FROM berkas_digital_perawatan WHERE no_rawat = ?');
+      $stmt->execute([$noRawat]);
+      $documentRows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    $diagnoses = [];
+    foreach ($diagnosisRows as $item) {
+      $code = isset($item['kd_penyakit']) ? $item['kd_penyakit'] : '';
+      $code = strtoupper(trim((string) $code));
+      if ($code !== '') $diagnoses[$code] = true;
+    }
+
+    $procedures = [];
+    foreach ($procedureRows as $item) {
+      $code = isset($item['kode']) ? $item['kode'] : '';
+      $code = strtoupper(trim((string) $code));
+      if ($code !== '') $procedures[$code] = true;
+    }
+
+    $documents = [];
+    foreach ($documentRows as $item) {
+      $code = isset($item['kode']) ? $item['kode'] : '';
+      $code = strtoupper(trim((string) $code));
+      if ($code !== '') $documents[$code] = true;
+    }
+
+    $alerts = [];
+    $needDocument = function ($code, $message) use (&$alerts, $documents) {
+      if (!isset($documents[strtoupper($code)])) $alerts[] = $message;
+    };
+
+    // D64.9 -> wajib Lembar Transfusi (kode berkas 021), khusus rawat inap.
+    // Pada rawat jalan badge ini tidak ditampilkan karena transfusi bukan
+    // persyaratan kelengkapan episode ralan.
+    if (isset($diagnoses['D64.9'])) {
+      $statusStmt = $pdo->prepare('SELECT status_lanjut FROM reg_periksa WHERE no_rawat = ? LIMIT 1');
+      $statusStmt->execute([$noRawat]);
+      $statusLanjut = (string) $statusStmt->fetchColumn();
+      if (strcasecmp($statusLanjut, 'Ranap') === 0) {
+        $needDocument('021', 'Lembar Transfusi dibutuhkan');
+      }
+    }
+
+    // Ventilator/intubasi tertentu -> wajib Cardex (kode berkas 041).
+    // Selain ICD-9 di prosedur_pasien, tindakan layanan ventilator juga
+    // menjadi pemicu karena beberapa instalasi mencatatnya sebagai tarif.
+    $needsCardex = false;
+    foreach (['96.05', '96.71', '96.70'] as $procedureCode) {
+      if (isset($procedures[$procedureCode])) {
+        $needsCardex = true;
+        break;
+      }
+    }
+
+    if (!$needsCardex) {
+      $cardexServiceGroups = [
+        ['rawat_jl_dr',   ['IGD-11287', 'IGD-112122', 'IGD-112133', 'IGD-112136']],
+        ['rawat_jl_pr',   ['IGD-11287', 'IGD-112122', 'IGD-112133', 'IGD-112136']],
+        ['rawat_jl_drpr', ['IGD-11287', 'IGD-112122', 'IGD-112133', 'IGD-112136']],
+        ['rawat_inap_dr',   ['ISO-11740', 'ISO-11741']],
+        ['rawat_inap_pr',   ['ISO-11740', 'ISO-11741']],
+        ['rawat_inap_drpr', ['ISO-11740', 'ISO-11741']],
+      ];
+
+      // Satukan pengecekan menjadi satu query agar validasi daftar pasien
+      // tidak menambah enam round-trip database untuk setiap baris.
+      $serviceQueries = [];
+      $serviceParams = [];
+      foreach ($cardexServiceGroups as [$table, $serviceCodes]) {
+        $placeholders = implode(',', array_fill(0, count($serviceCodes), '?'));
+        $serviceQueries[] = "SELECT 1 FROM {$table} WHERE no_rawat = ? AND kd_jenis_prw IN ({$placeholders})";
+        $serviceParams[] = $noRawat;
+        foreach ($serviceCodes as $serviceCode) {
+          $serviceParams[] = $serviceCode;
+        }
+      }
+      $serviceStmt = $pdo->prepare(implode(' UNION ALL ', $serviceQueries) . ' LIMIT 1');
+      $serviceStmt->execute($serviceParams);
+      $needsCardex = (bool) $serviceStmt->fetchColumn();
+    }
+
+    if ($needsCardex) {
+      $needDocument('041', 'Cardex dibutuhkan');
+    }
+
+    // Seluruh A15 dan turunannya (A15, A15.0-A15.9, A15.xx) -> wajib No SITB.
+    $hasA15 = false;
+    foreach (array_keys($diagnoses) as $diagnosisCode) {
+      if (preg_match('/^A15(?:\.|$)/', $diagnosisCode)) {
+        $hasA15 = true;
+        break;
+      }
+    }
+    if ($hasA15) {
+      if ($noRkmMedis === '') {
+        $reg = $this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray();
+        $noRkmMedis = isset($reg['no_rkm_medis']) ? trim((string) $reg['no_rkm_medis']) : '';
+      }
+      $hasSitb = false;
+      if ($noRkmMedis !== '') {
+        $sitb = $pdo->prepare('SELECT 1 FROM sitb_pasien_norm WHERE no_rkm_medis = ? LIMIT 1');
+        $sitb->execute([$noRkmMedis]);
+        $hasSitb = (bool) $sitb->fetchColumn();
+      }
+      if (!$hasSitb) $alerts[] = 'Input No SITB Pasien';
+    }
+
+    // Z37.0 -> SHK (022)
+    if (isset($diagnoses['Z37.0'])) {
+      $needDocument('022', 'Lengkapi SHK');
+    //   $needDocument('007', 'Lengkapi CTG');
+    //   $needDocument('023', 'Lengkapi Partograf');
+    }
+
+    // O80.9 -> Partograf (023)
+    if (isset($diagnoses['O80.9'])) {
+    //   $needDocument('007', 'Lengkapi CTG');
+      $needDocument('023', 'Lengkapi Partograf');
+    }
+    
+    // O82.9 -> CTG (007)
+    if (isset($diagnoses['O82.9'])) {
+      $needDocument('007', 'Lengkapi CTG');
+    //   $needDocument('023', 'Lengkapi Partograf');
+    }
+
+    return array_values(array_unique($alerts));
+  }
+
+  private function _hasMissingRadiologyExpertise($noRawat)
+  {
+    $noRawat = trim((string) $noRawat);
+    if ($noRawat === '') return false;
+
+    $stmt = $this->db()->pdo()->prepare(
+      'SELECT
+         EXISTS(SELECT 1 FROM periksa_radiologi pr WHERE pr.no_rawat = ? LIMIT 1) AS has_exam,
+         EXISTS(SELECT 1 FROM hasil_radiologi hr WHERE hr.no_rawat = ? LIMIT 1) AS has_result'
+    );
+    $stmt->execute([$noRawat, $noRawat]);
+    $status = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    return !empty($status['has_exam']) && empty($status['has_result']);
   }
 
   private function _getDiagnosa($field, $no_rawat, $status_lanjut)
@@ -7777,22 +10462,116 @@ class Admin extends AdminModule
   
   public function getAsesmenPoli($status_lanjut, $no_rawat)
   {
-    if($status_lanjut == 'Ralan') {
-      echo $this->draw('form.asesmenpoli.html', [
-        'status_lanjut' => $status_lanjut,
-        'reg_periksa' => $this->db('reg_periksa')->join('pasien', 'pasien.no_rkm_medis=reg_periksa.no_rkm_medis')->where('no_rawat', revertNoRawat($no_rawat))->oneArray(),
-        'asesmen' => $this->db('pemeriksaan_ralan')->where('no_rawat', revertNoRawat($no_rawat))->oneArray()
-      ]);
+    $rawNoRawat = revertNoRawat($no_rawat);
+    $regPeriksa = $this->db('reg_periksa')
+      ->join('pasien', 'pasien.no_rkm_medis=reg_periksa.no_rkm_medis')
+      ->join('dokter', 'dokter.kd_dokter=reg_periksa.kd_dokter')
+      ->where('reg_periksa.no_rawat', $rawNoRawat)
+      ->oneArray();
+    if (!$regPeriksa || $status_lanjut !== 'Ralan'
+        || (string) $regPeriksa['status_lanjut'] !== 'Ralan'
+        || (string) $regPeriksa['kd_poli'] === 'IGDK') {
+      http_response_code(404);
+      echo '<div class="modal-header"><h4 class="modal-title">SOAP Poli</h4></div>'
+        . '<div class="modal-body"><div class="alert alert-danger">SOAP Poli hanya tersedia untuk pasien rawat jalan non-IGD.</div></div>';
+      exit();
     }
-    if($status_lanjut == 'Ranap') {
-      echo $this->draw('form.asesmenpoli.html', [
-        'status_lanjut' => $status_lanjut,
-        'reg_periksa' => $this->db('reg_periksa')->where('no_rawat', revertNoRawat($no_rawat))->oneArray(),
-        'kamar_inap' => $this->db('kamar_inap')->where('no_rawat', revertNoRawat($no_rawat))->oneArray(),
-        'asesmen' => $this->db('pemeriksaan_ralan')->where('no_rawat', revertNoRawat($no_rawat))->oneArray()
-      ]);
-    }
+    $asesmen = $this->db('pemeriksaan_ralan')
+      ->where('no_rawat', $rawNoRawat)
+      ->where('nik', $regPeriksa['kd_dokter'])
+      ->desc('tgl_perawatan')->desc('jam_rawat')->oneArray();
+    echo $this->draw('form.asesmenpoli.html', [
+      'status_lanjut' => $status_lanjut, 'reg_periksa' => $regPeriksa, 'asesmen' => $asesmen
+    ]);
     exit();
+  }
+
+  public function anyLaporanbedah($status_lanjut, $no_rawat)
+  {
+    return $this->getLaporanBedah($status_lanjut, $no_rawat);
+  }
+
+  public function getLaporanBedah($status_lanjut, $no_rawat)
+  {
+    $rawNoRawat = revertNoRawat($no_rawat);
+    $regPeriksa = $this->db('reg_periksa')
+      ->join('pasien', 'pasien.no_rkm_medis=reg_periksa.no_rkm_medis')
+      ->where('reg_periksa.no_rawat', $rawNoRawat)
+      ->oneArray();
+    if (!$regPeriksa || !in_array((string) ($regPeriksa['kd_poli'] ?? ''), ['IGDK', 'U0034'], true)) {
+      http_response_code(404);
+      echo '<div class="modal-header"><h4 class="modal-title">Laporan Bedah</h4></div>'
+        . '<div class="modal-body"><div class="alert alert-danger">Laporan bedah hanya tersedia untuk IGD dan poli U0034.</div></div>';
+      exit();
+    }
+    $laporan = $this->db('laporan_bedah')->where('no_rawat', $rawNoRawat)->oneArray();
+    if (!$laporan) {
+      $laporan = ['operator' => $regPeriksa['kd_dokter'] ?? ''];
+    }
+    foreach (['mulai', 'selesai'] as $waktu) {
+      if (!empty($laporan[$waktu])) {
+        $laporan[$waktu] = str_replace(' ', 'T', substr((string) $laporan[$waktu], 0, 16));
+      }
+    }
+    $dokter = $this->db('dokter')->where('status','=','1')->asc('nm_dokter')->toArray();
+    $masterBedah = $this->db('master_b')->asc('kd_p')->toArray();
+    $html = $this->draw('form.laporanbedah.html', [
+      'status_lanjut' => $status_lanjut,
+      'reg_periksa' => $regPeriksa,
+      'laporan' => $laporan,
+      'dokter' => $dokter,
+      'master_bedah' => $masterBedah
+    ]);
+    if (!is_string($html) || trim($html) === '') {
+      $html = '<div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button><h4 class="modal-title">Laporan Bedah</h4></div><div class="modal-body"><div class="alert alert-danger">Template form laporan bedah tidak menghasilkan isi.</div></div>';
+    }
+    echo $html;
+    exit();
+  }
+
+  public function getMasterBedah($kode)
+  {
+    $template = $this->db('master_b')->where('kd_p', $kode)->oneArray();
+    return $this->jsonResponse(['ok' => (bool) $template, 'template' => $template ?: null]);
+  }
+
+  public function postSaveLaporanBedah()
+  {
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $regPeriksa = $this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray();
+    if (!$regPeriksa || !in_array((string) $regPeriksa['kd_poli'], ['IGDK', 'U0034'], true)) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Laporan bedah hanya tersedia untuk IGD dan poli U0034']);
+    }
+    $aksi = isset($_POST['aksi']) ? trim((string) $_POST['aksi']) : 'simpan';
+    try {
+      if ($aksi === 'hapus') {
+        $this->db('laporan_bedah')->where('no_rawat', $noRawat)->delete();
+        return $this->jsonResponse(['ok' => true, 'message' => 'Laporan bedah dihapus']);
+      }
+      $fields = [
+        'mulai', 'selesai', 'jenis_anestesi', 'jenis_pembedahan',
+        'diagnosa_preop', 'diagnosa_postop', 'jaringan', 'komplikasi',
+        'implan', 'no_implan', 'tindakan_bedah', 'laporan_bedah', 'operator'
+      ];
+      $data = ['no_rawat' => $noRawat];
+      foreach ($fields as $field) {
+        $data[$field] = isset($_POST[$field]) ? trim((string) $_POST[$field]) : '';
+      }
+      foreach (['mulai', 'selesai'] as $waktu) {
+        if ($data[$waktu] !== '') {
+          $data[$waktu] = str_replace('T', ' ', $data[$waktu]);
+          if (strlen($data[$waktu]) === 16) $data[$waktu] .= ':00';
+        }
+      }
+      if ($this->db('laporan_bedah')->where('no_rawat', $noRawat)->oneArray()) {
+        $this->db('laporan_bedah')->where('no_rawat', $noRawat)->save($data);
+      } else {
+        $this->db('laporan_bedah')->save($data);
+      }
+      return $this->jsonResponse(['ok' => true, 'message' => 'Laporan bedah berhasil disimpan']);
+    } catch (\Throwable $e) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'Laporan bedah gagal disimpan: ' . $e->getMessage()]);
+    }
   }
   
   public function getSitb($status_lanjut, $no_rkm_medis)
@@ -7859,26 +10638,32 @@ class Admin extends AdminModule
   
   public function postSaveAsesmenPoli()
   {
-
-    if($this->db('pemeriksaan_ralan')->where('no_rawat', $_POST['no_rawat'])->oneArray()) {
-      $this->db('pemeriksaan_ralan')
-        ->where('no_rawat', $_POST['no_rawat'])
-        ->save([
-        'suhu_tubuh' => $_POST['suhu_tubuh'],
-        'tensi' => $_POST['tensi'],
-        'nadi' => $_POST['nadi'],
-        'respirasi' => $_POST['respirasi'],
-        'tinggi' => $_POST['tinggi'],
-        'berat' => $_POST['berat'],
-        'gcs' => $_POST['gcs'],
-        'keluhan' => $_POST['keluhan'],
-        'pemeriksaan' => $_POST['pemeriksaan'],
-        'penilaian' => $_POST['penilaian'],
-        'rtl' => $_POST['rtl'],
-        'instruksi' => $_POST['instruksi']
-      ]);
+    $noRawat = isset($_POST['no_rawat']) ? trim((string) $_POST['no_rawat']) : '';
+    $tglPerawatan = isset($_POST['tgl_perawatan']) ? trim((string) $_POST['tgl_perawatan']) : '';
+    $jamRawat = isset($_POST['jam_rawat']) ? trim((string) $_POST['jam_rawat']) : '';
+    $regPeriksa = $this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray();
+    if (!$regPeriksa || (string) $regPeriksa['status_lanjut'] !== 'Ralan'
+        || (string) $regPeriksa['kd_poli'] === 'IGDK') {
+      return $this->jsonResponse(['ok' => false, 'message' => 'SOAP Poli hanya dapat diedit untuk rawat jalan non-IGD']);
     }
-    exit();
+    $dokter = (string) $regPeriksa['kd_dokter'];
+    $asesmen = $this->db('pemeriksaan_ralan')->where('no_rawat', $noRawat)
+      ->where('tgl_perawatan', $tglPerawatan)->where('jam_rawat', $jamRawat)
+      ->where('nik', $dokter)->oneArray();
+    if (!$asesmen) return $this->jsonResponse(['ok' => false, 'message' => 'SOAP dokter tidak ditemukan atau bukan milik dokter penanggung jawab']);
+    $fields = ['suhu_tubuh','tensi','nadi','respirasi','tinggi','berat','spo','gcs',
+      'kesadaran','keluhan','pemeriksaan','alergi','imun_ke','rtl','penilaian',
+      'rpd','rpk','rpo','operasi','instruksi'];
+    $data = [];
+    foreach ($fields as $field) $data[$field] = isset($_POST[$field]) ? trim((string) $_POST[$field]) : '';
+    try {
+      $this->db('pemeriksaan_ralan')->where('no_rawat', $noRawat)
+        ->where('tgl_perawatan', $tglPerawatan)->where('jam_rawat', $jamRawat)
+        ->where('nik', $dokter)->save($data);
+      return $this->jsonResponse(['ok' => true, 'message' => 'SOAP dokter berhasil diperbarui']);
+    } catch (\Throwable $e) {
+      return $this->jsonResponse(['ok' => false, 'message' => 'SOAP dokter gagal diperbarui: ' . $e->getMessage()]);
+    }
   }
   
   public function postSaveResume()
@@ -7993,7 +10778,8 @@ class Admin extends AdminModule
     }
     $diagnosa_pasien = $this->db('diagnosa_pasien')->join('penyakit', 'penyakit.kd_penyakit = diagnosa_pasien.kd_penyakit')->where('diagnosa_pasien.no_rawat', $rawNoRawat)->where('diagnosa_pasien.status', $status_lanjut)->asc('prioritas')->toArray();
     foreach ($diagnosa_pasien as &$diagnosa) {
-      $diagnosa['valid_grouping'] = isset($diagnosa['validcode']) && (string) $diagnosa['validcode'] === '1';
+      $diagnosa['inacbg_auto_code'] = $this->_mapIMDiagnosisToInacbg(isset($diagnosa['kd_penyakit']) ? $diagnosa['kd_penyakit'] : '', $diagnosa);
+      $diagnosa['valid_grouping'] = $this->_isDiagnosisUsableForCoding($diagnosa);
       $diagnosa['primary_allowed'] = !isset($diagnosa['accpdx']) || strtoupper((string) $diagnosa['accpdx']) !== 'N';
       $diagnosa['im_only'] = isset($diagnosa['im']) && (string) $diagnosa['im'] === '1';
     }
@@ -8025,7 +10811,13 @@ class Admin extends AdminModule
        LIMIT 25"
     );
     $stmt->execute([$like, $like, $query]);
-    return $this->jsonResponse(['ok' => true, 'items' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+    $items = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    foreach ($items as &$item) {
+      $item['inacbg_auto_code'] = $this->_mapIMDiagnosisToInacbg(isset($item['kode']) ? $item['kode'] : '', $item);
+      $item['valid_for_coding'] = $this->_isDiagnosisUsableForCoding($item);
+    }
+    unset($item);
+    return $this->jsonResponse(['ok' => true, 'items' => $items]);
   }
 
   public function postSimpanDiagnosaKlaim()
@@ -8042,7 +10834,7 @@ class Admin extends AdminModule
     }
 
     $master = $this->db('penyakit')->where('kd_penyakit', $kode)->oneArray();
-    if (!$master || !isset($master['validcode']) || (string) $master['validcode'] !== '1') {
+    if (!$master || !$this->_isDiagnosisUsableForCoding($master)) {
       return $this->jsonResponse(['ok' => false, 'message' => 'Kode ICD-10 tidak valid untuk grouping']);
     }
     if ($this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kode)->oneArray()) {
@@ -8057,7 +10849,7 @@ class Admin extends AdminModule
     $hasPrimary = false;
     foreach ($existing as $existingDiagnosis) {
       if ((int) $existingDiagnosis['prioritas'] === 1
-          && isset($existingDiagnosis['validcode']) && (string) $existingDiagnosis['validcode'] === '1'
+          && $this->_isDiagnosisUsableForCoding($existingDiagnosis)
           && (!isset($existingDiagnosis['accpdx']) || strtoupper((string) $existingDiagnosis['accpdx']) !== 'N')) {
         $hasPrimary = true;
         break;
@@ -8150,7 +10942,7 @@ class Admin extends AdminModule
       return $this->jsonResponse(['ok' => false, 'message' => 'Data diagnosis tidak lengkap']);
     }
     $master = $this->db('penyakit')->where('kd_penyakit', $kode)->oneArray();
-    if (!$master || (string) $master['validcode'] !== '1' || (isset($master['accpdx']) && strtoupper((string) $master['accpdx']) === 'N')) {
+    if (!$master || !$this->_isDiagnosisUsableForCoding($master) || (isset($master['accpdx']) && strtoupper((string) $master['accpdx']) === 'N')) {
       return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis ini tidak dapat dijadikan diagnosis utama']);
     }
     if (!$this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kode)->oneArray()) {
@@ -8182,7 +10974,7 @@ class Admin extends AdminModule
     $target = $this->db('diagnosa_pasien')->where('no_rawat', $noRawat)->where('status', $status)->where('kd_penyakit', $kodeLama)->oneArray();
     $master = $this->db('penyakit')->where('kd_penyakit', $kodeBaru)->oneArray();
     if (!$target) return $this->jsonResponse(['ok' => false, 'message' => 'Diagnosis yang akan diganti tidak ditemukan']);
-    if (!$master || (string) $master['validcode'] !== '1') return $this->jsonResponse(['ok' => false, 'message' => 'Kode diagnosis pengganti tidak valid untuk grouping']);
+    if (!$master || !$this->_isDiagnosisUsableForCoding($master)) return $this->jsonResponse(['ok' => false, 'message' => 'Kode diagnosis pengganti tidak valid untuk grouping']);
     if ((int) $target['prioritas'] === 1 && isset($master['accpdx']) && strtoupper((string) $master['accpdx']) === 'N') {
       return $this->jsonResponse(['ok' => false, 'message' => 'Kode pengganti hanya boleh menjadi diagnosis sekunder']);
     }
@@ -8216,7 +11008,7 @@ class Admin extends AdminModule
     if (!$rows) return;
 
     foreach ($rows as $index => $row) {
-      $allowed = (string) $row['validcode'] === '1' && strtoupper((string) $row['accpdx']) !== 'N';
+      $allowed = $this->_isDiagnosisUsableForCoding($row) && strtoupper((string) $row['accpdx']) !== 'N';
       if ($allowed) {
         if ($index > 0) {
           unset($rows[$index]);
@@ -10384,12 +13176,14 @@ class Admin extends AdminModule
     // STEP 3 IDRG
     $r = $this->GroupingIDRG($nosep,$diagnosa,$procedure);
     if (!$r['ok']) return $this->stop($result, 'grouper_idrg', $r);
+    $idrgGroupingResult = $r;
     $result['steps']['grouper_idrg'] = true;
     $result['steps']['final_idrg'] = true;
 
     // STEP 5 INACBG
     $r = $this->GroupingStage($nosep,$diagnosaINACBG,$procedureINACBG);
     if (!$r['ok']) return $this->stop($result, 'grouper_inacbg', $r);
+    $inacbgGroupingResult = $r;
     $result['steps']['grouper_inacbg'] = true;
     $result['steps']['final_inacbg'] = true;
 
@@ -10399,11 +13193,26 @@ class Admin extends AdminModule
     // STEP TERAKHIR: KIRIM KE DATA CENTER
     $r = $this->KirimKlaimIndividualKeDC($nosep, $isReedit);
     if (!$r['ok']) return $this->stop($result, 'kirim_datacenter', $r);
+    $datacenterResult = $r;
     $result['steps']['kirim_datacenter'] = true;
 
     $result['ok'] = true;
     $result['last_step'] = 'kirim_datacenter';
     $result['datacenter'] = $r;
+    $result['recap'] = $this->_saveGroupingRecap([
+      'no_rawat' => $norawat,
+      'nosep' => $nosep,
+      'jenis_rawat' => $jnsrawat === '1' ? 'Ranap' : 'Ralan',
+      'coder_nik' => isset($_POST['coder_nik']) ? trim((string) $_POST['coder_nik']) : '123123123123',
+      'diagnosa_idrg' => $diagnosaIDRG,
+      'prosedur_idrg' => $procedureIDRG,
+      'diagnosa_inacbg' => $diagnosaINACBG,
+      'prosedur_inacbg' => $procedureINACBG,
+      'idrg_result' => $idrgGroupingResult,
+      'inacbg_result' => $inacbgGroupingResult,
+      'datacenter_result' => $datacenterResult,
+      'payload' => $_POST
+    ]);
 
     return $this->jsonResponse($result);
   }
@@ -11520,7 +14329,140 @@ private function FinalisasiKlaim($nomor_sep) {
         'response' => $msg
     ];
 }
+    private function _groupingDcFilterSql($alias, $filter)
+    {
+        $alias = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $alias);
+        if ($alias === '' || $filter === 'all') return '';
 
+        // Kompatibel dengan data baru (mlite_vedika.status_dc) dan histori lama
+        // yang hanya tercatat di inacbg_data_terkirim.
+        if ($filter === 'sent') {
+            return " AND ({$alias}.status_dc = 'Terkirim DC'
+                      OR EXISTS (
+                          SELECT 1 FROM inacbg_data_terkirim idt_dc
+                          WHERE idt_dc.no_sep = {$alias}.nosep
+                      ))";
+        }
+
+        return " AND (COALESCE({$alias}.status_dc, '') <> 'Terkirim DC'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM inacbg_data_terkirim idt_dc
+                      WHERE idt_dc.no_sep = {$alias}.nosep
+                  ))";
+    }
+    private function _getLatestGroupingDelivery($noRawat, $nosep)
+    {
+        $noRawat = trim((string) $noRawat);
+        $nosep = trim((string) $nosep);
+
+        if ($nosep === '') {
+            return ['sent' => false, 'label' => 'Belum terkirim DC'];
+        }
+
+        try {
+            $pdo = $this->db()->pdo();
+
+            // Sumber utama: marker baru di mlite_vedika.
+            $stmt = $pdo->prepare(
+                "SELECT nosep AS no_sep, status_dc AS marker
+                 FROM mlite_vedika
+                 WHERE no_rawat = ? AND nosep = ? AND status_dc = 'Terkirim DC'
+                 ORDER BY id DESC LIMIT 1"
+            );
+            $stmt->execute([$noRawat, $nosep]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($row) {
+                return [
+                    'sent' => true,
+                    'label' => 'Sudah terkirim DC',
+                    'local_marker' => (string) ($row['marker'] ?? 'Terkirim DC')
+                ];
+            }
+
+            // Fallback histori: versi lama hanya mencatat SEP di tabel ini.
+            $legacy = $pdo->prepare(
+                "SELECT no_sep, nik FROM inacbg_data_terkirim
+                 WHERE no_sep = ? LIMIT 1"
+            );
+            $legacy->execute([$nosep]);
+            $legacyRow = $legacy->fetch(\PDO::FETCH_ASSOC);
+
+            if ($legacyRow) {
+                // Sinkronkan marker baru agar request berikutnya lebih ringan.
+                try {
+                    $sync = $pdo->prepare(
+                        "UPDATE mlite_vedika
+                         SET status_dc = 'Terkirim DC'
+                         WHERE no_rawat = ? AND nosep = ?"
+                    );
+                    $sync->execute([$noRawat, $nosep]);
+                } catch (\Throwable $ignored) {
+                    // Status legacy tetap sah walaupun sinkronisasi lokal gagal.
+                }
+
+                return [
+                    'sent' => true,
+                    'label' => 'Sudah terkirim DC',
+                    'local_marker' => (string) ($legacyRow['nik'] ?? 'Terkirim DC'),
+                    'legacy' => true
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Jangan mengganggu halaman daftar jika tabel/DB sementara bermasalah.
+        }
+
+        return ['sent' => false, 'label' => 'Belum terkirim DC'];
+    }
+
+
+  private function _markVedikaDcSent($nomorSep)
+    {
+        $nomorSep = trim((string) $nomorSep);
+        if ($nomorSep === '') {
+            throw new \RuntimeException('Nomor SEP kosong saat menyimpan status Data Center');
+        }
+
+        $pdo = $this->db()->pdo();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+
+        try {
+            // Tabel lama tetap diisi agar integrasi lain yang masih membacanya
+            // tidak langsung terputus.
+            $checkLegacy = $pdo->prepare(
+                'SELECT 1 FROM inacbg_data_terkirim WHERE no_sep = ? LIMIT 1'
+            );
+            $checkLegacy->execute([$nomorSep]);
+            if (!$checkLegacy->fetchColumn()) {
+                $insertLegacy = $pdo->prepare(
+                    "INSERT INTO inacbg_data_terkirim (no_sep, nik) VALUES (?, 'Terkirim DC')"
+                );
+                $insertLegacy->execute([$nomorSep]);
+            }
+
+            // Semua record Vedika dengan SEP yang sama ikut ditandai. Ini
+            // membuat filter halaman cukup membaca mlite_vedika saja.
+            $updateVedika = $pdo->prepare(
+                "UPDATE mlite_vedika SET status_dc = 'Terkirim DC' WHERE nosep = ?"
+            );
+            $updateVedika->execute([$nomorSep]);
+
+            $verify = $pdo->prepare(
+                "SELECT 1 FROM mlite_vedika
+                 WHERE nosep = ? AND status_dc = 'Terkirim DC' LIMIT 1"
+            );
+            $verify->execute([$nomorSep]);
+            if (!$verify->fetchColumn()) {
+                throw new \RuntimeException('status_dc mlite_vedika tidak berhasil diperbarui');
+            }
+
+            if ($ownsTransaction) $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+    }
 
   private function KirimKlaimIndividualKeDC($nomor_sep, $forceResend = false)
     {
@@ -11530,6 +14472,13 @@ private function FinalisasiKlaim($nomor_sep) {
             ->oneArray();
 
         if (!$forceResend && !empty($alreadySent)) {
+            // Sinkronkan data lama yang sudah ada di tabel legacy ke kolom baru.
+            try {
+                $this->_markVedikaDcSent($nomor_sep);
+            } catch (\Throwable $e) {
+                // Status remote sudah terkirim; kegagalan sinkron lokal tidak
+                // boleh memicu pengiriman ulang klaim ke Data Center.
+            }
             return [
                 'ok' => true,
                 'skipped' => true,
@@ -11561,27 +14510,13 @@ private function FinalisasiKlaim($nomor_sep) {
             isset($msg['metadata']['code']) &&
             (int)$msg['metadata']['code'] === 200
         ) {
-            // cek apakah no_sep sudah ada
-            $exists = $this->db('inacbg_data_terkirim')
-                ->where('no_sep', $nomor_sep)
-                ->oneArray();
-    
-            // hanya insert jika belum ada
-            if (empty($exists)) {
-                try {
-                    $this->db('inacbg_data_terkirim')->save([
-                        'no_sep'  => $nomor_sep,
-                        'nik' => 'Terkirim DC'
-                    ]);
-                    $response['local_save'] = 'inserted';
-                } catch (\Throwable $e) {
-                    // DB error tidak menggagalkan response DC
-                    $response['local_save']  = 'failed';
-                    $response['local_error'] = $e->getMessage();
-                }
-            } else {
-                // sudah ada → biarkan
-                $response['local_save'] = 'exists';
+            try {
+                $this->_markVedikaDcSent($nomor_sep);
+                $response['local_save'] = 'saved';
+            } catch (\Throwable $e) {
+                // DB error tidak menggagalkan response DC
+                $response['local_save']  = 'failed';
+                $response['local_error'] = $e->getMessage();
             }
         }
     
@@ -12505,6 +15440,241 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             || strpos($message, 'respons e-klaim tidak valid atau tidak dapat didekripsi') !== false;
     }
 
+    /**
+     * Simpan snapshot hasil grouping yang berhasil. Rekap bersifat audit trail:
+     * pengiriman ulang membuat revision_no baru dan tidak menimpa hasil lama.
+     * Kegagalan pencatatan tidak boleh membatalkan klaim yang sudah terkirim.
+     */
+    private function _saveGroupingRecap(array $context)
+    {
+        try {
+            $pdo = $this->db()->pdo();
+            $this->_ensureGroupingRecapTable($pdo);
+
+            $noRawat = trim((string) ($context['no_rawat'] ?? ''));
+            $nosep = trim((string) ($context['nosep'] ?? ''));
+            if ($noRawat === '' || $nosep === '') {
+                return ['ok' => false, 'message' => 'Rekap tidak disimpan: no_rawat atau SEP kosong'];
+            }
+
+            // Ambil ulang data klaim setelah final dan Kirim DC agar angka yang
+            // disimpan sama dengan tabel Data Claim pada modal INACBG manual.
+            $claimResponse = null;
+            $claimReadError = null;
+            try {
+                $claimResponse = $this->Request(json_encode([
+                    'metadata' => ['method' => 'get_claim_data'],
+                    'data' => ['nomor_sep' => $nosep]
+                ]));
+            } catch (\Throwable $e) {
+                $claimReadError = $e->getMessage();
+            }
+
+            $claimEnvelope = is_array($claimResponse) && isset($claimResponse['response'])
+                && is_array($claimResponse['response'])
+                ? $claimResponse['response']
+                : $claimResponse;
+            $claimData = is_array($claimEnvelope) && isset($claimEnvelope['data'])
+                && is_array($claimEnvelope['data'])
+                ? $claimEnvelope['data']
+                : [];
+            $grouper = isset($claimData['grouper']) && is_array($claimData['grouper'])
+                ? $claimData['grouper']
+                : [];
+            $idrg = isset($grouper['response_idrg']) && is_array($grouper['response_idrg'])
+                ? $grouper['response_idrg']
+                : [];
+            $inacbg = isset($grouper['response_inacbg']) && is_array($grouper['response_inacbg'])
+                ? $grouper['response_inacbg']
+                : [];
+            if (!$idrg) {
+                $idrg = $this->_groupingRecapFindArray(
+                    $context['idrg_result'] ?? [],
+                    ['drg_code', 'drg_description']
+                );
+            }
+            if (!$inacbg) {
+                $inacbg = $this->_groupingRecapFindArray(
+                    $context['inacbg_result'] ?? [],
+                    ['cbg', 'cbg_code', 'tariff']
+                );
+            }
+            $tarifDetail = isset($claimData['tarif_rs']) && is_array($claimData['tarif_rs'])
+                ? $claimData['tarif_rs']
+                : [];
+
+            // Jika get_claim_data sesaat gagal, tarif payload masih cukup untuk
+            // rekap biaya RS; response mentah tetap menyimpan alasan kegagalannya.
+            if (!$tarifDetail) {
+                $payload = isset($context['payload']) && is_array($context['payload'])
+                    ? $context['payload']
+                    : [];
+                $tarifMap = [
+                    'prosedur_non_bedah', 'prosedur_bedah', 'konsultasi', 'tenaga_ahli',
+                    'keperawatan', 'penunjang', 'radiologi', 'laboratorium',
+                    'pelayanan_darah', 'rehabilitasi', 'kamar', 'rawat_intensif',
+                    'obat', 'obat_kronis', 'obat_kemoterapi', 'alkes', 'bmhp',
+                    'sewa_alat', 'tarif_poli_eks'
+                ];
+                foreach ($tarifMap as $tarifField) {
+                    $tarifDetail[$tarifField] = $payload[$tarifField] ?? 0;
+                }
+            }
+
+            $tarifRs = 0.0;
+            foreach ($tarifDetail as $tarifValue) {
+                $money = $this->_groupingRecapMoney($tarifValue);
+                if ($money !== null) $tarifRs += $money;
+            }
+            $tarifInacbg = $this->_groupingRecapMoney($inacbg['tariff'] ?? ($inacbg['tarif'] ?? null));
+            $tarifIdrg = $this->_groupingRecapMoney(
+                $idrg['tariff'] ?? ($idrg['tarif'] ?? ($idrg['base_tariff'] ?? null))
+            );
+
+            $source = $this->activeGroupingJobId !== null ? 'setstatus' : 'manual';
+            $requestedBy = (string) $this->core->getUserInfo('username', null, true);
+            if ($this->activeGroupingJobId !== null) {
+                $queue = $this->db('mlite_vedika_grouping_queue')
+                    ->where('id', $this->activeGroupingJobId)
+                    ->oneArray();
+                if ($queue && isset($queue['requested_by'])) {
+                    $requestedBy = (string) $queue['requested_by'];
+                }
+            }
+
+            $revisionStmt = $pdo->prepare(
+                'SELECT COALESCE(MAX(revision_no), 0) + 1
+                 FROM mlite_vedika_grouping_recap WHERE no_rawat = ? AND nosep = ?'
+            );
+            $revisionStmt->execute([$noRawat, $nosep]);
+            $revision = max(1, (int) $revisionStmt->fetchColumn());
+
+            $dcResult = isset($context['datacenter_result']) && is_array($context['datacenter_result'])
+                ? $context['datacenter_result']
+                : [];
+            $dcResponse = isset($dcResult['response']) && is_array($dcResult['response'])
+                ? $dcResult['response']
+                : [];
+            $dcStatus = isset($dcResponse['metadata']['message'])
+                ? (string) $dcResponse['metadata']['message']
+                : (!empty($dcResult['skipped']) ? 'Klaim sudah pernah dikirim ke Data Center' : 'Berhasil');
+            $claimStatus = (string) ($claimData['klaim_status_cd']
+                ?? ($claimData['bpjs_klaim_status_nm'] ?? ($claimData['bpjs_klaim_status_cd'] ?? '')));
+
+            if ($claimReadError !== null) {
+                $claimResponse = ['recap_read_error' => $claimReadError];
+            }
+
+            $insert = $pdo->prepare(
+                'INSERT INTO mlite_vedika_grouping_recap
+                (no_rawat, nosep, revision_no, source, jenis_rawat, requested_by, coder_nik,
+                 diagnosa_idrg, prosedur_idrg, diagnosa_inacbg, prosedur_inacbg,
+                 idrg_code, idrg_description, inacbg_code, inacbg_description,
+                 tarif_rs, tarif_idrg, tarif_inacbg, selisih_inacbg_rs, tarif_rs_detail,
+                 dc_status, claim_status, claim_data_json, idrg_result_json,
+                 inacbg_result_json, dc_result_json, payload_json, created_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())'
+            );
+            $insert->execute([
+                $noRawat,
+                $nosep,
+                $revision,
+                $source,
+                ($context['jenis_rawat'] ?? '') === 'Ranap' ? 'Ranap' : 'Ralan',
+                substr($requestedBy, 0, 50),
+                substr((string) ($context['coder_nik'] ?? ''), 0, 50),
+                (string) ($context['diagnosa_idrg'] ?? ''),
+                (string) ($context['prosedur_idrg'] ?? ''),
+                (string) ($context['diagnosa_inacbg'] ?? ''),
+                (string) ($context['prosedur_inacbg'] ?? ''),
+                (string) ($idrg['drg_code'] ?? ($idrg['code'] ?? '')),
+                (string) ($idrg['drg_description'] ?? ($idrg['description'] ?? '')),
+                (string) (($inacbg['cbg']['code'] ?? ($inacbg['cbg_code'] ?? ''))),
+                (string) (($inacbg['cbg']['description'] ?? ($inacbg['cbg_description'] ?? ''))),
+                $tarifRs,
+                $tarifIdrg,
+                $tarifInacbg,
+                $tarifInacbg !== null ? $tarifInacbg - $tarifRs : null,
+                $this->_groupingRecapJson($tarifDetail),
+                substr($dcStatus, 0, 100),
+                substr($claimStatus, 0, 100),
+                $this->_groupingRecapJson($claimResponse),
+                $this->_groupingRecapJson($context['idrg_result'] ?? []),
+                $this->_groupingRecapJson($context['inacbg_result'] ?? []),
+                $this->_groupingRecapJson($dcResult),
+                $this->_groupingRecapJson($context['payload'] ?? [])
+            ]);
+
+            return [
+                'ok' => true,
+                'id' => (int) $pdo->lastInsertId(),
+                'revision_no' => $revision,
+                'source' => $source
+            ];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Klaim berhasil, tetapi rekap grouping gagal: ' . $e->getMessage()];
+        }
+    }
+
+    private function _ensureGroupingRecapTable(\PDO $pdo)
+    {
+        static $ready = false;
+        if ($ready) return;
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS mlite_vedika_grouping_recap (
+              id bigint unsigned NOT NULL AUTO_INCREMENT,
+              no_rawat varchar(17) NOT NULL, nosep varchar(30) NOT NULL,
+              revision_no int unsigned NOT NULL DEFAULT 1,
+              source enum('setstatus','manual') NOT NULL,
+              jenis_rawat enum('Ralan','Ranap') NOT NULL,
+              requested_by varchar(50) DEFAULT NULL, coder_nik varchar(50) DEFAULT NULL,
+              diagnosa_idrg text, prosedur_idrg text, diagnosa_inacbg text, prosedur_inacbg text,
+              idrg_code varchar(30) DEFAULT NULL, idrg_description varchar(255) DEFAULT NULL,
+              inacbg_code varchar(30) DEFAULT NULL, inacbg_description varchar(255) DEFAULT NULL,
+              tarif_rs decimal(18,2) NOT NULL DEFAULT 0.00,
+              tarif_idrg decimal(18,2) DEFAULT NULL, tarif_inacbg decimal(18,2) DEFAULT NULL,
+              selisih_inacbg_rs decimal(18,2) DEFAULT NULL, tarif_rs_detail longtext,
+              dc_status varchar(100) DEFAULT NULL, claim_status varchar(100) DEFAULT NULL,
+              claim_data_json longtext, idrg_result_json longtext, inacbg_result_json longtext,
+              dc_result_json longtext, payload_json longtext,
+              created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              UNIQUE KEY uq_vedika_grouping_revision (no_rawat,nosep,revision_no),
+              KEY idx_vedika_grouping_sep (nosep), KEY idx_vedika_grouping_created (created_at),
+              KEY idx_vedika_grouping_source (source,jenis_rawat)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC"
+        );
+        $ready = true;
+    }
+
+    private function _groupingRecapMoney($value)
+    {
+        if ($value === null || $value === '') return null;
+        if (is_int($value) || is_float($value)) return (float) $value;
+        $normalized = preg_replace('/[^0-9.\-]/', '', (string) $value);
+        return $normalized === '' || $normalized === '-' ? null : (float) $normalized;
+    }
+
+    private function _groupingRecapJson($value)
+    {
+        $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        return $json === false ? '{}' : $json;
+    }
+
+    private function _groupingRecapFindArray($value, array $keys)
+    {
+        if (!is_array($value)) return [];
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $value)) return $value;
+        }
+        foreach ($value as $child) {
+            if (!is_array($child)) continue;
+            $found = $this->_groupingRecapFindArray($child, $keys);
+            if ($found) return $found;
+        }
+        return [];
+    }
+
     private function _resolveCoderNik()
     {
         if (isset($_POST['coder_nik']) && trim((string) $_POST['coder_nik']) !== '') {
@@ -12574,9 +15744,10 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
     
         foreach ($codes as $code) {
             if (in_array($code, $imCodes, true)) {
-                // IM → hanya IDRG
                 $idrg[] = $code;
                 $imOnly[] = $code;
+                $inacbgCode = $this->_mapIMDiagnosisToInacbg($code, ['im' => '1']);
+                if ($inacbgCode !== '') $inacbg[] = $inacbgCode;
             } else {
                 // Non IM → keduanya
                 $idrg[]   = $code;
@@ -12585,10 +15756,35 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         }
     
         return [
-            'idrg'   => implode('#', $idrg),
-            'inacbg' => implode('#', $inacbg),
+            'idrg'   => implode('#', array_values(array_unique($idrg))),
+            'inacbg' => implode('#', array_values(array_unique($inacbg))),
             'im_codes' => implode('#', $imOnly)
         ];
+    }
+
+    private function _mapIMDiagnosisToInacbg($code, array $row = [])
+    {
+        static $cache = [];
+        $code = strtoupper(trim((string) $code));
+        if ($code === '' || !preg_match('/^([A-Z][0-9]{2})\.([0-9])([0-9])$/', $code, $match)) return '';
+        if (array_key_exists($code, $cache)) return $cache[$code];
+        $isIM = isset($row['im']) ? (string) $row['im'] === '1' : false;
+        if (!array_key_exists('im', $row)) {
+            $child = $this->db('penyakit')->where('kd_penyakit', $code)->oneArray();
+            $isIM = $child && isset($child['im']) && (string) $child['im'] === '1';
+        }
+        if (!$isIM) return $cache[$code] = '';
+        $parentCode = $match[1] . '.' . $match[2];
+        $parent = $this->db('penyakit')->where('kd_penyakit', $parentCode)->oneArray();
+        if (!$parent || !isset($parent['validcode']) || trim((string) $parent['validcode']) !== '0') return $cache[$code] = '';
+        return $cache[$code] = $parentCode;
+    }
+
+    private function _isDiagnosisUsableForCoding(array $row)
+    {
+        $code = isset($row['kd_penyakit']) ? $row['kd_penyakit'] : (isset($row['kode']) ? $row['kode'] : '');
+        return (isset($row['validcode']) && trim((string) $row['validcode']) === '1')
+            || $this->_mapIMDiagnosisToInacbg($code, $row) !== '';
     }
 
     private function _onlyIMDiagnosisMessage($codes)
@@ -12614,6 +15810,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         $codes = [];
         foreach ($rows as $row) {
             if (!isset($row['im']) || (string) $row['im'] !== '1') return null;
+            if ($this->_mapIMDiagnosisToInacbg(isset($row['kd_penyakit']) ? $row['kd_penyakit'] : '', $row) !== '') return null;
             $codes[] = $row['kd_penyakit'];
         }
         return $this->_onlyIMDiagnosisMessage(implode('#', $codes));
@@ -12624,6 +15821,8 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         if (!$rows) return false;
         foreach ($rows as $row) {
             if (!isset($row['im']) || (string) $row['im'] !== '1') return false;
+            $code = isset($row['kd_penyakit']) ? $row['kd_penyakit'] : (isset($row['kode']) ? $row['kode'] : '');
+            if ($this->_mapIMDiagnosisToInacbg($code, $row) !== '') return false;
         }
         return true;
     }
@@ -12644,7 +15843,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         foreach ($diagnoses as $row) {
             $code = isset($row['kd_penyakit']) ? trim((string) $row['kd_penyakit']) : '';
             $priority = isset($row['prioritas']) ? (string) $row['prioritas'] : '';
-            $valid = isset($row['validcode']) && (string) $row['validcode'] === '1';
+            $valid = $this->_isDiagnosisUsableForCoding($row);
             if ($priority === '1') {
                 $hasPrimaryDiagnosis = true;
                 if (isset($row['accpdx']) && strtoupper(trim((string) $row['accpdx'])) === 'N') {
@@ -13398,6 +16597,61 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
       exit();
     }
 
+    /**
+     * Membandingkan kelas hak SEP (bridging_sep.klsrawat) dengan kelas kamar
+     * yang dipakai pasien. Nilai SEP biasanya berupa 1/2/3, sedangkan tabel
+     * kamar menyimpan teks seperti "Kelas 1".
+     */
+    private function _validateKelasRawat($kelasSep, $kelasKamar)
+    {
+      $normalize = function ($value) {
+        $value = strtolower(trim((string) $value));
+        $value = preg_replace('/^kelas\\s*/', '', $value);
+        return trim($value);
+      };
+
+      $kelasSep = trim((string) $kelasSep);
+      $kelasKamar = trim((string) $kelasKamar);
+      $sepNormalized = $normalize($kelasSep);
+      $kamarNormalized = $normalize($kelasKamar);
+      $mismatch = false;
+      // Nomor kelas lebih kecil berarti kelas kamar lebih tinggi:
+      // Kelas 1 > Kelas 2 > Kelas 3. Hanya kamar yang lebih rendah
+      // dari hak SEP yang dianggap tidak sesuai. Upgrade kamar tetap valid.
+      if ($sepNormalized !== '' && $kamarNormalized !== ''
+        && ctype_digit($sepNormalized) && ctype_digit($kamarNormalized)) {
+        $mismatch = (int) $kamarNormalized > (int) $sepNormalized;
+      }
+
+      return [
+        'mismatch' => $mismatch,
+        'alert' => $mismatch
+          ? 'Kelas SEP tidak sesuai kamar: SEP Kelas ' . $kelasSep . ', kamar ' . $kelasKamar
+          : ''
+      ];
+    }
+
+    private function _getKelasRawatValidation($no_rawat)
+    {
+      $sep = $this->db('bridging_sep')
+        ->where('no_rawat', $no_rawat)
+        ->where('jnspelayanan', '1')
+        ->desc('tglsep')
+        ->oneArray();
+      $kamarInap = $this->db('kamar_inap')
+        ->where('no_rawat', $no_rawat)
+        ->desc('tgl_keluar')
+        ->oneArray();
+      $kamar = $kamarInap && !empty($kamarInap['kd_kamar'])
+        ? $this->db('kamar')->where('kd_kamar', $kamarInap['kd_kamar'])->oneArray()
+        : [];
+
+      return $this->_validateKelasRawat(
+        $sep['klsrawat'] ?? '',
+        $kamar['kelas'] ?? ''
+      );
+    }
+
     public function getRingkasanMedis($status_lanjut, $no_rawat)
     {
       $no_rawat = revertNoRawat($no_rawat);
@@ -13471,6 +16725,16 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
       }
 
       $codingValidation = $this->_validateCodingRows($diagnosa, $prosedur);
+      $regPeriksa = $this->db('reg_periksa')
+        ->where('no_rawat', $no_rawat)
+        ->oneArray();
+      $noRkmMedis = $regPeriksa && isset($regPeriksa['no_rkm_medis'])
+        ? $regPeriksa['no_rkm_medis']
+        : '';
+      $requiredDocumentAlerts = $this->_getRequiredDocumentAlerts($no_rawat, $noRkmMedis, $diagnosa, $prosedur);
+      $kelasRawatValidation = $status_lanjut === 'Ranap'
+        ? $this->_getKelasRawatValidation($no_rawat)
+        : ['mismatch' => false, 'alert' => ''];
       $jenisPelayanan = $status_lanjut === 'Ranap' ? '1' : '2';
       $sep = $this->db('bridging_sep')
         ->where('no_rawat', $no_rawat)
@@ -13483,11 +16747,15 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         'diagnosa' => $hasilDiagnosa,
         'prosedur' => $hasilProsedur,
         'validation' => [
-          'blocked' => !$codingValidation['ok'],
+          'blocked' => !$codingValidation['ok'] || !empty($requiredDocumentAlerts) || $kelasRawatValidation['mismatch'],
+          'kelas_rawat_mismatch' => $kelasRawatValidation['mismatch'],
+          'kelas_rawat_message' => $kelasRawatValidation['alert'],
           'diagnosis_message' => $codingValidation['diagnosis_message'],
           'procedure_message' => $codingValidation['procedure_message'],
+          'document_message' => implode('; ', $requiredDocumentAlerts),
           'only_im' => $this->_diagnosisRowsOnlyIM($diagnosa)
         ],
+        'required_document_alerts' => $requiredDocumentAlerts,
         'setstatus_url' => $nosep !== ''
           ? url([ADMIN, 'vedika', 'setstatus', $nosep])
           : ''

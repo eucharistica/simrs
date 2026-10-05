@@ -136,6 +136,7 @@
           <button type="button" name="button" class="btn btn-danger" id="buka_icd10dan9"><i class="fa fa-download"></i><span class="hidden-xs"> ICD 10 & 9</span></button>
           </span>
           <button type="button" name="button" class="btn btn-info" id="eresep"><i class="fa fa-medkit"></i><span class="hidden-xs"> E-Resep</span></button>
+          <button type="button" name="button" class="btn btn-info" id="permintaan_lab_soap"><i class="fa fa-flask"></i><span class="hidden-xs"> Permintaan Lab/Rad</span></button>
           <button type="button" name="button" class="btn btn-info" id="buka_riwayat"><i class="fa fa-file-o"></i><span class="hidden-xs"> Riwayat</span></button>
           <button type="button" name="button" class="btn btn-success" id="selesai_soap"><i class="fa fa-check"></i><span class="hidden-xs"> Close</span></button>
           <span class="pull-right">
@@ -245,6 +246,47 @@
             ...
         </div>
     </div>
+</div>
+<div class="modal fade" id="permintaanLabRadModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title"><i class="fa fa-flask"></i> Permintaan Laboratorium / Radiologi</h4>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info" id="permintaanLabRadPasien"></div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Cari Laboratorium</label>
+              <input type="text" class="form-control" id="modalLaboratorium" placeholder="Ketik nama pemeriksaan">
+              <div id="modalLaboratoriumList" class="list-group"></div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>Cari Radiologi</label>
+              <input type="text" class="form-control" id="modalRadiologi" placeholder="Ketik nama pemeriksaan">
+              <div id="modalRadiologiList" class="list-group"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel panel-default" style="margin-top:15px;">
+          <div class="panel-heading"><strong>Pemeriksaan yang dipilih</strong></div>
+          <div class="panel-body" id="modalPemeriksaanDipilih">
+            <div class="text-muted">Belum ada pemeriksaan yang dipilih.</div>
+          </div>
+        </div>
+        <div class="form-group m-t-md"><label>Informasi Tambahan</label><textarea id="modalInformasi" class="form-control" rows="2"></textarea></div>
+        <div class="form-group"><label>Diagnosa Klinis</label><input type="text" id="modalDiagnosa" class="form-control"></div>
+        <button type="button" class="btn btn-primary" id="modalSimpanPermintaan"><i class="fa fa-save"></i> Simpan Permintaan</button>
+        <hr>
+        <h4>Permintaan yang sudah tersimpan</h4>
+        <div id="modalPermintaanTersimpan"><div class="text-muted">Memuat...</div></div>
+      </div>
+    </div>
+  </div>
 </div>
 <script type="text/javascript">
   $('input:text[name=kesadaran]').focus(function(){

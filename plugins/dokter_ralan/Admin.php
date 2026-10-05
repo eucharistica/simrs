@@ -288,36 +288,50 @@ class Admin extends AdminModule
       }
 
       if($_POST['kat'] == 'laboratorium') {
-        $cek_lab = $this->db('permintaan_lab')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', date('Y-m-d'))->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
+        $tgl_permintaan_lab = !empty($_POST['tgl_perawatan']) ? $_POST['tgl_perawatan'] : date('Y-m-d');
+        $cek_lab = $this->db('permintaan_lab')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', $tgl_permintaan_lab)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
+        $dokter_perujuk = $this->core->getUserInfo('username', null, true);
+        if (!$this->db('dokter')->where('kd_dokter', $dokter_perujuk)->oneArray()) {
+          $reg_periksa_lab = $this->db('reg_periksa')->where('no_rawat', $_POST['no_rawat'])->oneArray();
+          if ($reg_periksa_lab && $this->db('dokter')->where('kd_dokter', $reg_periksa_lab['kd_dokter'])->oneArray()) {
+            $dokter_perujuk = $reg_periksa_lab['kd_dokter'];
+          }
+        }
         if(!$cek_lab) {
-          $max_id = $this->db('permintaan_lab')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', date('Y-m-d'))->oneArray();
+          $max_id = $this->db('permintaan_lab')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', $tgl_permintaan_lab)->oneArray();
           if(empty($max_id['noorder'])) {
             $max_id['noorder'] = '0000';
           }
-          $_next_noorder = sprintf('%04s', ($max_id['noorder'] + 1));
-          $noorder = 'PL'.date('Ymd').''.$_next_noorder;
+          $_next_noorder = str_pad((string) ((int) $max_id['noorder'] + 1), 4, '0', STR_PAD_LEFT);
+          $noorder = 'PK'.str_replace('-', '', $tgl_permintaan_lab).$_next_noorder;
 
           $permintaan_lab = $this->db('permintaan_lab')
             ->save([
               'noorder' => $noorder,
               'no_rawat' => $_POST['no_rawat'],
-              'tgl_permintaan' => $_POST['tgl_perawatan'],
+              'tgl_permintaan' => $tgl_permintaan_lab,
               'jam_permintaan' => $_POST['jam_rawat'],
               'tgl_sampel' => '0000-00-00',
               'jam_sampel' => '00:00:00',
               'tgl_hasil' => '0000-00-00',
               'jam_hasil' => '00:00:00',
-              'dokter_perujuk' => $this->core->getUserInfo('username', null, true),
+              'dokter_perujuk' => $dokter_perujuk,
               'status' => 'ralan',
-              'informasi_tambahan' => $_POST['informasi_tambahan'],
-              'diagnosa_klinis' => $_POST['diagnosa_klinis']
+              'informasi_tambahan' => trim((string) ($_POST['informasi_tambahan'] ?? '')) ?: '-',
+              'diagnosa_klinis' => trim((string) ($_POST['diagnosa_klinis'] ?? '')) ?: '-',
+              'tambahan' => 'Tidak Cito'
             ]);
-          $this->db('permintaan_pemeriksaan_lab')
-            ->save([
-              'noorder' => $noorder,
-              'kd_jenis_prw' => $_POST['kd_jenis_prw'],
-              'stts_bayar' => 'Belum'
-            ]);
+          $this->db('permintaan_lab_order')->save([
+            'noorder' => $noorder,
+            'jam_permintaan' => $tgl_permintaan_lab.' '.($_POST['jam_rawat'] ?? '00:00:00'),
+            'jam_sampel' => $tgl_permintaan_lab.' 00:00:00',
+            'jam_hasil' => $tgl_permintaan_lab.' 00:00:00'
+          ]);
+          $this->db('permintaan_pemeriksaan_lab')->save([
+            'noorder' => $noorder,
+            'kd_jenis_prw' => $_POST['kd_jenis_prw'],
+            'stts_bayar' => 'Belum'
+          ]);
           $template_laboratorium = $this->db('template_laboratorium')->where('kd_jenis_prw', $_POST['kd_jenis_prw'])->toArray();
           for ($i = 0; $i < count($template_laboratorium); $i++) {
             $this->db('permintaan_detail_permintaan_lab')
@@ -330,12 +344,19 @@ class Admin extends AdminModule
           }
         } else {
           $noorder = $cek_lab['noorder'];
-          $this->db('permintaan_pemeriksaan_lab')
-            ->save([
+          if (!$this->db('permintaan_lab_order')->where('noorder', $noorder)->oneArray()) {
+            $this->db('permintaan_lab_order')->save([
               'noorder' => $noorder,
-              'kd_jenis_prw' => $_POST['kd_jenis_prw'],
-              'stts_bayar' => 'Belum'
+              'jam_permintaan' => $tgl_permintaan_lab.' '.($_POST['jam_rawat'] ?? '00:00:00'),
+              'jam_sampel' => $tgl_permintaan_lab.' 00:00:00',
+              'jam_hasil' => $tgl_permintaan_lab.' 00:00:00'
             ]);
+          }
+          $this->db('permintaan_pemeriksaan_lab')->save([
+            'noorder' => $noorder,
+            'kd_jenis_prw' => $_POST['kd_jenis_prw'],
+            'stts_bayar' => 'Belum'
+          ]);
           $template_laboratorium = $this->db('template_laboratorium')->where('kd_jenis_prw', $_POST['kd_jenis_prw'])->toArray();
           for ($i = 0; $i < count($template_laboratorium); $i++) {
             $this->db('permintaan_detail_permintaan_lab')
@@ -350,29 +371,38 @@ class Admin extends AdminModule
       }
 
       if($_POST['kat'] == 'radiologi') {
-        $cek_rad = $this->db('permintaan_radiologi')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', date('Y-m-d'))->where('tgl_sampel', '<>', '0000-00-00')->where('status', 'ralan')->oneArray();
+        $tgl_permintaan_rad = !empty($_POST['tgl_perawatan']) ? $_POST['tgl_perawatan'] : date('Y-m-d');
+        $cek_rad = $this->db('permintaan_radiologi')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', $tgl_permintaan_rad)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
+        $dokter_perujuk_rad = $this->core->getUserInfo('username', null, true);
+        if (!$this->db('dokter')->where('kd_dokter', $dokter_perujuk_rad)->oneArray()) {
+          $reg_periksa_rad = $this->db('reg_periksa')->where('no_rawat', $_POST['no_rawat'])->oneArray();
+          if ($reg_periksa_rad && $this->db('dokter')->where('kd_dokter', $reg_periksa_rad['kd_dokter'])->oneArray()) {
+            $dokter_perujuk_rad = $reg_periksa_rad['kd_dokter'];
+          }
+        }
         if(!$cek_rad) {
-          $max_id = $this->db('permintaan_radiologi')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', date('Y-m-d'))->oneArray();
+          $max_id = $this->db('permintaan_radiologi')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', $tgl_permintaan_rad)->oneArray();
           if(empty($max_id['noorder'])) {
             $max_id['noorder'] = '0000';
           }
-          $_next_noorder = sprintf('%04s', ($max_id['noorder'] + 1));
-          $noorder = 'PR'.date('Ymd').''.$_next_noorder;
+          $_next_noorder = str_pad((string) ((int) $max_id['noorder'] + 1), 4, '0', STR_PAD_LEFT);
+          $noorder = 'PR'.str_replace('-', '', $tgl_permintaan_rad).$_next_noorder;
 
           $permintaan_rad = $this->db('permintaan_radiologi')
             ->save([
               'noorder' => $noorder,
               'no_rawat' => $_POST['no_rawat'],
-              'tgl_permintaan' => $_POST['tgl_perawatan'],
+              'tgl_permintaan' => $tgl_permintaan_rad,
               'jam_permintaan' => $_POST['jam_rawat'],
               'tgl_sampel' => '0000-00-00',
               'jam_sampel' => '00:00:00',
               'tgl_hasil' => '0000-00-00',
               'jam_hasil' => '00:00:00',
-              'dokter_perujuk' => $this->core->getUserInfo('username', null, true),
+              'dokter_perujuk' => $dokter_perujuk_rad,
               'status' => 'ralan',
-              'informasi_tambahan' => $_POST['informasi_tambahan'],
-              'diagnosa_klinis' => $_POST['diagnosa_klinis']
+              'informasi_tambahan' => trim((string) ($_POST['informasi_tambahan'] ?? '')) ?: '-',
+              'diagnosa_klinis' => trim((string) ($_POST['diagnosa_klinis'] ?? '')) ?: '-',
+              'tambahan' => 'No Alarm'
             ]);
           $this->db('permintaan_pemeriksaan_radiologi')
             ->save([
@@ -426,6 +456,9 @@ class Admin extends AdminModule
 
     public function postHapusPermintaanLab()
     {
+      $this->db('permintaan_pemeriksaan_lab')
+      ->where('noorder', $_POST['noorder'])
+      ->delete();
       $this->db('permintaan_lab')
       ->where('noorder', $_POST['noorder'])
       ->where('no_rawat', $_POST['no_rawat'])
@@ -590,7 +623,7 @@ class Admin extends AdminModule
       }
 
       /*
-      $rows_laboratorium = $this->db('permintaan_lab')->join('permintaan_pemeriksaan_lab', 'permintaan_pemeriksaan_lab.noorder=permintaan_lab.noorder')->where('no_rawat', $_POST['no_rawat'])->toArray();
+      $rows_laboratorium = $this->db('permintaan_lab')->join('permintaan_detail_permintaan_lab', 'permintaan_detail_permintaan_lab.noorder=permintaan_lab.noorder')->where('no_rawat', $_POST['no_rawat'])->toArray();
       $jumlah_total_lab = 0;
       $laboratorium = [];
 
@@ -613,29 +646,25 @@ class Admin extends AdminModule
         ->toArray();
       $laboratorium = [];
       foreach ($rows_laboratorium as $row) {
-        $rows2 = $this->db('permintaan_pemeriksaan_lab')
-          ->join('jns_perawatan_lab', 'jns_perawatan_lab.kd_jenis_prw=permintaan_pemeriksaan_lab.kd_jenis_prw')
-          //->join('permintaan_detail_permintaan_lab', 'permintaan_detail_permintaan_lab.noorder=permintaan_pemeriksaan_lab.noorder')
-          ->where('permintaan_pemeriksaan_lab.noorder', $row['noorder'])
+        $rows2 = $this->db('permintaan_detail_permintaan_lab')
+          ->join('jns_perawatan_lab', 'jns_perawatan_lab.kd_jenis_prw=permintaan_detail_permintaan_lab.kd_jenis_prw')
+          ->where('permintaan_detail_permintaan_lab.noorder', $row['noorder'])
           ->toArray();
-          $row['permintaan_pemeriksaan_lab'] = [];
-          foreach ($rows2 as $row2) {
-            $row2['noorder'] = $row2['noorder'];
-            $row2['kd_jenis_prw'] = $row2['kd_jenis_prw'];
-            $row2['stts_bayar'] = $row2['stts_bayar'];
-            $row2['nm_perawatan'] = $row2['nm_perawatan'];
-            $row2['kd_pj'] = $row2['kd_pj'];
-            $row2['status'] = $row2['status'];
-            $row2['kelas'] = $row2['kelas'];
-            $row2['kategori'] = $row2['kategori'];
-            $rows3 = $this->db('permintaan_detail_permintaan_lab')->where('noorder', $row2['noorder'])->where('kd_jenis_prw', $row2['kd_jenis_prw'])->toArray();
-            $row2['permintaan_detail_permintaan_lab'] = [];
-            foreach ($rows3 as $row3) {
-              $row3['template_laboratorium'] = $this->db('template_laboratorium')->where('kd_jenis_prw', $row3['kd_jenis_prw'])->where('id_template', $row3['id_template'])->oneArray();
-              $row2['permintaan_detail_permintaan_lab'][] = $row3;
-            }
-            $row['permintaan_pemeriksaan_lab'][] = $row2;
+        $row['permintaan_pemeriksaan_lab'] = [];
+        $grouped_lab = [];
+        foreach ($rows2 as $row2) {
+          $group_key = $row2['noorder'].'|'.$row2['kd_jenis_prw'];
+          if (!isset($grouped_lab[$group_key])) {
+            $grouped_lab[$group_key] = $row2;
+            $grouped_lab[$group_key]['permintaan_detail_permintaan_lab'] = [];
           }
+          $row2['template_laboratorium'] = $this->db('template_laboratorium')
+            ->where('kd_jenis_prw', $row2['kd_jenis_prw'])
+            ->where('id_template', $row2['id_template'])
+            ->oneArray();
+          $grouped_lab[$group_key]['permintaan_detail_permintaan_lab'][] = $row2;
+        }
+        $row['permintaan_pemeriksaan_lab'] = array_values($grouped_lab);
         $laboratorium[] = $row;
       }
 
@@ -769,13 +798,18 @@ class Admin extends AdminModule
       ->where('noorder', $_POST['noorder'])
       ->where('tgl_permintaan', $_POST['tgl_permintaan'])
       ->where('jam_permintaan', $_POST['jam_permintaan'])
-      ->where('status', 'Ralan')
+      ->where('status', 'ralan')
       ->delete();
       exit();
     }
 
     public function postHapusPermintaanLaboratorium()
     {
+      $this->db('permintaan_detail_permintaan_lab')
+      ->where('noorder', $_POST['noorder'])
+      ->where('kd_jenis_prw', $_POST['kd_jenis_prw'])
+      ->where('stts_bayar', 'Belum')
+      ->delete();
       $this->db('permintaan_pemeriksaan_lab')
       ->where('noorder', $_POST['noorder'])
       ->where('kd_jenis_prw', $_POST['kd_jenis_prw'])

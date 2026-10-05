@@ -27,7 +27,7 @@
               <td>{$value.no_resep}</td>
               <td>{$value.tgl_peresepan} {$value.jam_peresepan}</td>
               <td colspan="2">
-                <button type="button" class="btn btn-danger btn-xs {if: $value.tgl_perawatan !== '0000-00-00'}disabled{else}hapus_resep_obat{/if}" data-no_rawat="{$value.no_rawat}" data-tgl_peresepan="{$value.tgl_peresepan}" data-jam_peresepan="{$value.jam_peresepan}" data-no_resep="{$value.no_resep}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus Resep</span></button>
+                <button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete || $value.tgl_perawatan !== '0000-00-00'}disabled{else}hapus_resep_obat{/if}" data-no_rawat="{$value.no_rawat}" data-tgl_peresepan="{$value.tgl_peresepan}" data-jam_peresepan="{$value.jam_peresepan}" data-no_resep="{$value.no_resep}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus Resep</span></button>
               </td>
             </tr>
             <tr>
@@ -43,7 +43,7 @@
                 <td>{$data.jml}</td>
                 <td>{$data.aturan_pakai}</td>
                 <td>Rp. <span class="pull-right">{?= number_format(($data.ralan * $data.jml),2,',','.')?}</span></td>
-                <td><button type="button" class="btn btn-danger btn-xs {if: $value.tgl_perawatan !== '0000-00-00'}disabled{else}hapus_resep_dokter{/if}" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$data.kode_brng}" data-no_resep="{$value.no_resep}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus Obat</span></button></td>
+                <td><button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete || $value.tgl_perawatan !== '0000-00-00'}disabled{else}hapus_resep_dokter{/if}" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$data.kode_brng}" data-no_resep="{$value.no_resep}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus Obat</span></button></td>
               </tr>
             {/loop}
             {/loop}
@@ -75,7 +75,7 @@
               <td>{$value.no_resep}</td>
               <td>{$value.tgl_peresepan} {$value.jam_peresepan}</td>
               <td>
-                <button type="button" class="btn btn-danger btn-xs hapus_resep_obat" data-no_rawat="{$value.no_rawat}" data-tgl_peresepan="{$value.tgl_peresepan}" data-jam_peresepan="{$value.jam_peresepan}" data-no_resep="{$value.no_resep}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus Resep</span></button>
+                <button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_resep_obat{/if}" data-no_rawat="{$value.no_rawat}" data-tgl_peresepan="{$value.tgl_peresepan}" data-jam_peresepan="{$value.jam_peresepan}" data-no_resep="{$value.no_resep}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus Resep</span></button>
               </td>
             </tr>
             <tr>
@@ -135,7 +135,7 @@
               <td>{$value.nm_perawatan}</td>
               <td>Dokter</td>
               <td>Rp. <span class="pull-right">{?= number_format($value.biaya_rawat,2,',','.')?}</span></td>
-              <td><button type="button" class="btn btn-danger btn-xs hapus_detail" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$value.kd_jenis_prw}" data-tgl_perawatan="{$value.tgl_perawatan}" data-jam_rawat="{$value.jam_rawat}" data-provider="{$value.provider}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
+              <td><button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_detail{/if}" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$value.kd_jenis_prw}" data-tgl_perawatan="{$value.tgl_perawatan}" data-jam_rawat="{$value.jam_rawat}" data-provider="{$value.provider}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
             </tr>
             {/loop}
             {loop: $rawat_jl_pr}
@@ -144,7 +144,7 @@
               <td>{$value.nm_perawatan}</td>
               <td>Perawat</td>
               <td>Rp. <span class="pull-right">{?= number_format($value.biaya_rawat,2,',','.')?}</span></td>
-              <td><button type="button" class="btn btn-danger btn-xs hapus_detail" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$value.kd_jenis_prw}" data-tgl_perawatan="{$value.tgl_perawatan}" data-jam_rawat="{$value.jam_rawat}" data-provider="{$value.provider}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
+              <td><button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_detail{/if}" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$value.kd_jenis_prw}" data-tgl_perawatan="{$value.tgl_perawatan}" data-jam_rawat="{$value.jam_rawat}" data-provider="{$value.provider}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
             </tr>
             {/loop}
             {loop: $rawat_jl_drpr}
@@ -153,7 +153,7 @@
               <td>{$value.nm_perawatan}</td>
               <td>Dokter & Perawat</td>
               <td>Rp. <span class="pull-right">{?= number_format($value.biaya_rawat,2,',','.')?}</span></td>
-              <td><button type="button" class="btn btn-danger btn-xs hapus_detail" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$value.kd_jenis_prw}" data-tgl_perawatan="{$value.tgl_perawatan}" data-jam_rawat="{$value.jam_rawat}" data-provider="{$value.provider}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
+              <td><button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_detail{/if}" data-no_rawat="{$value.no_rawat}" data-kd_jenis_prw="{$value.kd_jenis_prw}" data-tgl_perawatan="{$value.tgl_perawatan}" data-jam_rawat="{$value.jam_rawat}" data-provider="{$value.provider}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
             </tr>
             {/loop}
           </tbody>
@@ -222,7 +222,7 @@
               <td>{$value.nm_perawatan} {$value.noorder}</td>
               <td>{$value.kelas}</td>
               <td>Rp. <span class="pull-right">{?= number_format($value.total_byr,2,',','.')?}</span></td>
-              <td><button type="button" class="btn btn-danger btn-xs hapus_permintaan_lab" data-no_rawat="{$value.no_rawat}" data-noorder="{$value.noorder}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
+              <td><button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_permintaan_lab{/if}" data-no_rawat="{$value.no_rawat}" data-noorder="{$value.noorder}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
             </tr>
             {/loop}
           </tbody>
@@ -253,7 +253,7 @@
               <td>{$value.noorder}</td>
               <td>{$value.tgl_permintaan} {$value.jam_permintaan}</td>
               <td>
-                <button type="button" class="btn btn-danger btn-xs {if: $value.tgl_sampel !== '0000-00-00' || $value.jam_sampel !== '00:00:00'}disabled{else}hapus_permintaan_lab{/if}" data-no_rawat="{$value.no_rawat}" data-tgl_permintaan="{$value.tgl_permintaan}" data-jam_permintaan="{$value.jam_permintaan}" data-noorder="{$value.noorder}"><i class="fa fa-trash"></i><span class="hidden-xs"> Hapus</span></button>
+                <button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete || $value.tgl_sampel !== '0000-00-00' || $value.jam_sampel !== '00:00:00'}disabled{else}hapus_permintaan_lab{/if}" data-no_rawat="{$value.no_rawat}" data-tgl_permintaan="{$value.tgl_permintaan}" data-jam_permintaan="{$value.jam_permintaan}" data-noorder="{$value.noorder}"><i class="fa fa-trash"></i><span class="hidden-xs"> Hapus</span></button>
               </td>
             </tr>
             <tr>
@@ -266,7 +266,7 @@
                 <td colspan="2">{$data.nm_perawatan}</td>
                 <td>{$data.stts_bayar}</td>
                 <td>
-                  <button type="button" class="btn btn-danger btn-xs hapus_permintaan" data-noorder="{$value.noorder}" data-kd_jenis_prw="{$data.kd_jenis_prw}"><i class="fa fa-trash"></i><span class="hidden-xs"> Hapus</span></button>
+                  <button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_permintaan{/if}" data-noorder="{$value.noorder}" data-kd_jenis_prw="{$data.kd_jenis_prw}"><i class="fa fa-trash"></i><span class="hidden-xs"> Hapus</span></button>
                   <a href="{?=url([ADMIN, 'dokter_igd', 'detailpermintaan', $data.noorder, $data.kd_jenis_prw])?}" data-toggle="modal" data-target="#detailModal" class="btn btn-success btn-xs"><i class="fa fa-search"></i><span class="hidden-xs"> Detail</span></a>
                 </td>
               </tr>
@@ -290,7 +290,7 @@
                       <td>{$data2.template_laboratorium.nilai_rujukan_pa}</td>
                       <td>{$data2.template_laboratorium.nilai_rujukan_ld}</td>
                       <td>{$data2.template_laboratorium.nilai_rujukan_pd}</td>
-                      <td><span class="fa fa-trash btn btn-danger hapus_detail_permintaan" data-noorder={$data.noorder} data-kd_jenis_prw={$data.kd_jenis_prw}  data-id_template={$data2.template_laboratorium.id_template}><span></td>
+                      <td><span class="fa fa-trash btn btn-danger {if: !$value.can_delete}disabled{else}hapus_detail_permintaan{/if}" data-noorder={$data.noorder} data-kd_jenis_prw={$data.kd_jenis_prw}  data-id_template={$data2.template_laboratorium.id_template}><span></td>
                     </tr>
                     {/loop}
                   </table>
@@ -322,7 +322,7 @@
               <td>{$value.nm_perawatan}</td>
               <td>{$value.kelas}</td>
               <td>Rp. <span class="pull-right">{?= number_format($value.total_byr,2,',','.')?}</span></td>
-              <td><button type="button" class="btn btn-danger btn-xs hapus_permintaan_rad" data-no_rawat="{$value.no_rawat}" data-noorder="{$value.noorder}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
+              <td><button type="button" class="btn btn-danger btn-xs {if: !$value.can_delete}disabled{else}hapus_permintaan_rad{/if}" data-no_rawat="{$value.no_rawat}" data-noorder="{$value.noorder}"><i class="fa fa-close"></i><span class="hidden-xs"> Hapus</span></button></td>
             </tr>
             {/loop}
           </tbody>

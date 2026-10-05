@@ -1,0 +1,108 @@
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title"><i class="fa fa-flask"></i> Ambil Riwayat Laboratorium</h4>
+</div>
+<div class="modal-body">
+  {if: $lab.error}
+    <div class="alert alert-danger">{$lab.error}</div>
+  {else}
+    <div class="alert alert-info" style="padding:10px;">
+      Pilih pemeriksaan dari kunjungan lain pasien yang sama. Seluruh hasil dan komponen tarif akan disalin ke <strong>{$lab.target_no_rawat}</strong>. Data yang identik dan sudah tersedia tidak akan digandakan.
+    </div>
+    <form id="form_copy_lab_history" method="post" action="{$lab.copy_url}">
+      <input type="hidden" name="target_no_rawat" value="{$lab.target_no_rawat}">
+      <div class="table-responsive" style="max-height:520px;overflow:auto;">
+        <table class="table table-bordered table-condensed">
+          <thead>
+            <tr>
+              <th width="36"><input type="checkbox" id="check_all_lab_history"></th>
+              <th width="150">Kunjungan sumber</th>
+              <th width="145">Tanggal periksa</th>
+              <th>Jenis pemeriksaan dan hasil</th>
+            </tr>
+          </thead>
+          <tbody>
+            {if: !empty($lab.history)}
+              {loop: $lab.history}
+              <tr>
+                <td><input type="checkbox" class="lab-history-item" name="lab_items[]" value="{$value.selection_key}"></td>
+                <td><strong>{$value.no_rawat}</strong><br><small>{$value.tgl_kunjungan} · {$value.status_lanjut}</small></td>
+                <td>{$value.tgl_periksa}<br><small>{$value.jam}</small></td>
+                <td>
+                  <strong>{$value.kd_jenis_prw} — {$value.nm_perawatan}</strong>
+                  {if: !empty($value.details)}
+                    <table class="table table-condensed" style="margin:6px 0 0;background:#fff;">
+                      {loop: $value.details}
+                      <tr>
+                        <td style="border-top:1px solid #eee;">{$value.nama_detail}</td>
+                        <td style="border-top:1px solid #eee;"><strong>{$value.nilai}</strong> {$value.satuan}</td>
+                        <td style="border-top:1px solid #eee;">{$value.nilai_rujukan}</td>
+                        <td style="border-top:1px solid #eee;">{$value.keterangan}</td>
+                      </tr>
+                      {/loop}
+                    </table>
+                  {else}
+                    <br><small class="text-muted">Tidak ada detail hasil.</small>
+                  {/if}
+                </td>
+              </tr>
+              {/loop}
+            {else}
+              <tr><td colspan="4" class="text-center text-muted">Riwayat laboratorium dari kunjungan lain tidak ditemukan.</td></tr>
+            {/if}
+          </tbody>
+        </table>
+      </div>
+    </form>
+  {/if}
+</div>
+<div class="modal-footer">
+  {if: !$lab.error && !empty($lab.history)}
+    <button type="submit" form="form_copy_lab_history" class="btn btn-primary" id="copy_lab_history_button"><i class="fa fa-copy"></i> Salin yang dipilih</button>
+  {/if}
+  <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
+</div>
+<script>
+(function ($) {
+  $('#labHistoryModal')
+    .off('hidden.bs.modal.labHistory')
+    .on('hidden.bs.modal.labHistory', function () {
+      $(this).removeData('bs.modal').find('.modal-content').html('...');
+    });
+  $('#check_all_lab_history').on('change', function () {
+    $('.lab-history-item').prop('checked', this.checked);
+  });
+  $('#form_copy_lab_history').on('submit', function (event) {
+    event.preventDefault();
+    var form = $(this);
+    var button = $('#copy_lab_history_button');
+    if (!form.find('.lab-history-item:checked').length) {
+      alert('Pilih minimal satu pemeriksaan laboratorium.');
+      return;
+    }
+    button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Menyalin...');
+    $.post(form.attr('action'), form.serialize())
+      .done(function (response) {
+        if (typeof response === 'string') {
+          try { response = JSON.parse(response); }
+          catch (e) { alert('Respons server tidak valid: ' + response.substring(0, 500)); return; }
+        }
+        if (!response || !response.ok) {
+          alert(response && response.message ? response.message : 'Gagal menyalin laboratorium.');
+          return;
+        }
+        alert(response.message);
+        $('#labHistoryModal').modal('hide');
+      })
+      .fail(function (xhr) {
+        var message = 'Gagal menyalin laboratorium.';
+        if (xhr.responseJSON && xhr.responseJSON.message) message = xhr.responseJSON.message;
+        else if (xhr.responseText) message += '\nRespons server: ' + xhr.responseText.substring(0, 700);
+        alert(message);
+      })
+      .always(function () {
+        button.prop('disabled', false).html('<i class="fa fa-copy"></i> Salin yang dipilih');
+      });
+  });
+})(jQuery);
+</script>

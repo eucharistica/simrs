@@ -1914,6 +1914,32 @@
         </td>
       </tr>
       {/if} -->
+      {if: $reg_periksa.status_lanjut == 'Ralan' && $pemberian_obat}
+      <tr class="isi">
+        <td valign="top" width="20%">Resep Obat</td>
+        <td valign="top" width="1%" align="center">:</td>
+        <td valign="top" width="79%">
+          <table width="100%" border="1" align="center" cellpadding="3px" cellspacing="0" class="tbl_form">
+            <tr align='center'>
+              <td valign='top' width='18%' bgcolor='#FFFAF8'>Tanggal</td>
+              <td valign='top' width='12%' bgcolor='#FFFAF8'>Kode</td>
+              <td valign='top' width='35%' bgcolor='#FFFAF8'>Nama Obat</td>
+              <td valign='top' width='15%' bgcolor='#FFFAF8'>Jumlah</td>
+              <td valign='top' width='20%' bgcolor='#FFFAF8'>Aturan Pakai</td>
+            </tr>
+            {loop: $pemberian_obat}
+            <tr>
+              <td valign='top'>{$value.tgl_perawatan} {$value.jam}</td>
+              <td valign='top'>{$value.kode_brng}</td>
+              <td valign='top'>{$value.nama_brng}</td>
+              <td valign='top'>{$value.jml}</td>
+              <td valign='top'>{$value.aturan_pakai}</td>
+            </tr>
+            {/loop}
+          </table>
+        </td>
+      </tr>
+      {/if}
       {if: $obat_operasi}
       <tr class="isi">
         <td valign="top" width="20%">Obat Operasi</td>
@@ -1958,6 +1984,24 @@
               <td valign='top'>{$value.nama_brng}</td>
               <td valign='top'>{$value.jml_barang} {$value.kode_sat}</td>
               <td valign='top'>{$value.dosis}</td>
+            </tr>
+            {/loop}
+          </table>
+        </td>
+      </tr>
+      {/if}
+      {if: $reg_periksa.kd_poli == 'IGDK' && $catatan_observasi_igd}
+      <tr class="isi">
+        <td valign="top" width="20%">Catatan Observasi IGD</td>
+        <td valign="top" width="1%" align="center">:</td>
+        <td valign="top" width="79%">
+          <table width="100%" border="1" align="center" cellpadding="3px" cellspacing="0" class="tbl_form">
+            <tr align="center">
+              <td valign="top" bgcolor="#FFFAF8">Tanggal Observasi</td><td valign="top" bgcolor="#FFFAF8">Jam Observasi</td><td valign="top" bgcolor="#FFFAF8">GCS</td><td valign="top" bgcolor="#FFFAF8">TD</td><td valign="top" bgcolor="#FFFAF8">HR</td><td valign="top" bgcolor="#FFFAF8">RR</td><td valign="top" bgcolor="#FFFAF8">Suhu</td><td valign="top" bgcolor="#FFFAF8">SpO2</td><td valign="top" bgcolor="#FFFAF8">Keluhan</td><td valign="top" bgcolor="#FFFAF8">Tatalaksana Lanjut</td><td valign="top" bgcolor="#FFFAF8">Keterangan</td>
+            </tr>
+            {loop: $catatan_observasi_igd}
+            <tr>
+              <td valign="top">{$value.tgl_perawatan}</td><td valign="top">{$value.jam_rawat}</td><td valign="top">{$value.gcs}</td><td valign="top">{$value.td}</td><td valign="top">{$value.hr}</td><td valign="top">{$value.rr}</td><td valign="top">{$value.suhu}</td><td valign="top">{$value.spo2}</td><td valign="top">{$value.keluh}</td><td valign="top">{$value.tll}</td><td valign="top">{$value.keterangan}</td>
             </tr>
             {/loop}
           </table>
@@ -2019,6 +2063,24 @@
                 <td valign="top" colspan="7"> : {$value.alergi}</td>
              </tr>
              {/loop}
+          </table>
+        </td>
+      </tr>
+      {/if}
+      {if: $reg_periksa.status_lanjut == 'Ranap' && $catatan_observasi_ranap}
+      <tr class="isi">
+        <td valign="top" width="20%">Catatan Observasi Rawat Inap</td>
+        <td valign="top" width="1%" align="center">:</td>
+        <td valign="top" width="79%">
+          <table width="100%" border="1" align="center" cellpadding="3px" cellspacing="0" class="tbl_form">
+            <tr align="center">
+              <td valign="top" bgcolor="#FFFAF8">Tanggal Observasi</td><td valign="top" bgcolor="#FFFAF8">Jam Observasi</td><td valign="top" bgcolor="#FFFAF8">Hari Ke</td><td valign="top" bgcolor="#FFFAF8">GCS</td><td valign="top" bgcolor="#FFFAF8">TD</td><td valign="top" bgcolor="#FFFAF8">HR</td><td valign="top" bgcolor="#FFFAF8">RR</td><td valign="top" bgcolor="#FFFAF8">Suhu</td><td valign="top" bgcolor="#FFFAF8">SpO2</td><td valign="top" bgcolor="#FFFAF8">Keluhan</td>
+            </tr>
+            {loop: $catatan_observasi_ranap}
+            <tr>
+              <td valign="top">{$value.tgl_perawatan}</td><td valign="top">{$value.jam_rawat}</td><td valign="top">{$value.hari_ke}</td><td valign="top">{$value.gcs}</td><td valign="top">{$value.td}</td><td valign="top">{$value.hr}</td><td valign="top">{$value.rr}</td><td valign="top">{$value.suhu}</td><td valign="top">{$value.spo2}</td><td valign="top">{$value.lainnya}</td>
+            </tr>
+            {/loop}
           </table>
         </td>
       </tr>

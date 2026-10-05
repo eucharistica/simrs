@@ -8,6 +8,20 @@ class Admin extends AdminModule
 {
 
     private $_uploads = WEBAPPS_PATH.'/berkasrawat/pages/upload';
+    private function canDeleteOwnedRow($table, $conditions)
+    {
+      $row = $this->db($table);
+      foreach ($conditions as $field => $value) {
+        $row = $row->where($field, $value);
+      }
+      $row = $row->oneArray();
+      if (!$row) return false;
+      $username = (string) $this->core->getUserInfo('username', null, true);
+      foreach (['kd_dokter', 'dokter_perujuk', 'nik', 'nip'] as $owner) {
+        if (isset($row[$owner]) && (string) $row[$owner] === $username) return true;
+      }
+      return false;
+    }
     public function navigation()
     {
         return [
@@ -262,30 +276,38 @@ class Admin extends AdminModule
       }
 
       if($_POST['kat'] == 'laboratorium') {
-        $cek_lab = $this->db('permintaan_lab')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', date('Y-m-d'))->where('tgl_sampel', '<>', '0000-00-00')->where('status', 'ralan')->oneArray();
+        $tgl_permintaan_lab = !empty($_POST['tgl_perawatan']) ? $_POST['tgl_perawatan'] : date('Y-m-d');
+        $dokter_perujuk_lab = $this->core->getUserInfo('username', null, true);
+        if (!$this->db('dokter')->where('kd_dokter', $dokter_perujuk_lab)->oneArray()) {
+          $reg_lab = $this->db('reg_periksa')->where('no_rawat', $_POST['no_rawat'])->oneArray();
+          if ($reg_lab && $this->db('dokter')->where('kd_dokter', $reg_lab['kd_dokter'])->oneArray()) $dokter_perujuk_lab = $reg_lab['kd_dokter'];
+        }
+        $cek_lab = $this->db('permintaan_lab')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', $tgl_permintaan_lab)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
         if(!$cek_lab) {
-          $max_id = $this->db('permintaan_lab')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', date('Y-m-d'))->oneArray();
+          $max_id = $this->db('permintaan_lab')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', $tgl_permintaan_lab)->oneArray();
           if(empty($max_id['noorder'])) {
             $max_id['noorder'] = '0000';
           }
           $_next_noorder = sprintf('%04s', ($max_id['noorder'] + 1));
-          $noorder = 'PL'.date('Ymd').''.$_next_noorder;
+          $noorder = 'PK'.str_replace('-', '', $tgl_permintaan_lab).$_next_noorder;
 
           $permintaan_lab = $this->db('permintaan_lab')
             ->save([
               'noorder' => $noorder,
               'no_rawat' => $_POST['no_rawat'],
-              'tgl_permintaan' => $_POST['tgl_perawatan'],
+              'tgl_permintaan' => $tgl_permintaan_lab,
               'jam_permintaan' => $_POST['jam_rawat'],
               'tgl_sampel' => '0000-00-00',
               'jam_sampel' => '00:00:00',
               'tgl_hasil' => '0000-00-00',
               'jam_hasil' => '00:00:00',
-              'dokter_perujuk' => $this->core->getUserInfo('username', null, true),
+              'dokter_perujuk' => $dokter_perujuk_lab,
               'status' => 'ralan',
-              'informasi_tambahan' => $_POST['informasi_tambahan'],
-              'diagnosa_klinis' => $_POST['diagnosa_klinis']
+              'informasi_tambahan' => trim((string) ($_POST['informasi_tambahan'] ?? '')) ?: '-',
+              'diagnosa_klinis' => trim((string) ($_POST['diagnosa_klinis'] ?? '')) ?: '-',
+              'tambahan' => 'Tidak Cito'
             ]);
+          $this->db('permintaan_lab_order')->save(['noorder'=>$noorder,'jam_permintaan'=>$tgl_permintaan_lab.' '.($_POST['jam_rawat'] ?? '00:00:00'),'jam_sampel'=>$tgl_permintaan_lab.' 00:00:00','jam_hasil'=>$tgl_permintaan_lab.' 00:00:00']);
           $this->db('permintaan_pemeriksaan_lab')
             ->save([
               'noorder' => $noorder,
@@ -324,29 +346,36 @@ class Admin extends AdminModule
       }
 
       if($_POST['kat'] == 'radiologi') {
-        $cek_rad = $this->db('permintaan_radiologi')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', date('Y-m-d'))->where('tgl_sampel', '<>', '0000-00-00')->where('status', 'ralan')->oneArray();
+        $tgl_permintaan_rad = !empty($_POST['tgl_perawatan']) ? $_POST['tgl_perawatan'] : date('Y-m-d');
+        $dokter_perujuk_rad = $this->core->getUserInfo('username', null, true);
+        if (!$this->db('dokter')->where('kd_dokter', $dokter_perujuk_rad)->oneArray()) {
+          $reg_rad = $this->db('reg_periksa')->where('no_rawat', $_POST['no_rawat'])->oneArray();
+          if ($reg_rad && $this->db('dokter')->where('kd_dokter', $reg_rad['kd_dokter'])->oneArray()) $dokter_perujuk_rad = $reg_rad['kd_dokter'];
+        }
+        $cek_rad = $this->db('permintaan_radiologi')->where('no_rawat', $_POST['no_rawat'])->where('tgl_permintaan', $tgl_permintaan_rad)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
         if(!$cek_rad) {
-          $max_id = $this->db('permintaan_radiologi')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', date('Y-m-d'))->oneArray();
+          $max_id = $this->db('permintaan_radiologi')->select(['noorder' => 'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', $tgl_permintaan_rad)->oneArray();
           if(empty($max_id['noorder'])) {
             $max_id['noorder'] = '0000';
           }
           $_next_noorder = sprintf('%04s', ($max_id['noorder'] + 1));
-          $noorder = 'PR'.date('Ymd').''.$_next_noorder;
+          $noorder = 'PR'.str_replace('-', '', $tgl_permintaan_rad).$_next_noorder;
 
           $permintaan_rad = $this->db('permintaan_radiologi')
             ->save([
               'noorder' => $noorder,
               'no_rawat' => $_POST['no_rawat'],
-              'tgl_permintaan' => $_POST['tgl_perawatan'],
+              'tgl_permintaan' => $tgl_permintaan_rad,
               'jam_permintaan' => $_POST['jam_rawat'],
               'tgl_sampel' => '0000-00-00',
               'jam_sampel' => '00:00:00',
               'tgl_hasil' => '0000-00-00',
               'jam_hasil' => '00:00:00',
-              'dokter_perujuk' => $this->core->getUserInfo('username', null, true),
+              'dokter_perujuk' => $dokter_perujuk_rad,
               'status' => 'ralan',
-              'informasi_tambahan' => $_POST['informasi_tambahan'],
-              'diagnosa_klinis' => $_POST['diagnosa_klinis']
+              'informasi_tambahan' => trim((string) ($_POST['informasi_tambahan'] ?? '')) ?: '-',
+              'diagnosa_klinis' => trim((string) ($_POST['diagnosa_klinis'] ?? '')) ?: '-',
+              'tambahan' => 'No Alarm'
             ]);
           $this->db('permintaan_pemeriksaan_radiologi')
             ->save([
@@ -371,6 +400,34 @@ class Admin extends AdminModule
 
     public function postHapusDetail()
     {
+      $table = in_array($_POST['provider'] ?? '', ['rawat_jl_dr','rawat_jl_pr','rawat_jl_drpr'], true) ? $_POST['provider'] : '';
+      $conditions = [
+        'no_rawat' => $_POST['no_rawat'],
+        'kd_jenis_prw' => $_POST['kd_jenis_prw'],
+        'tgl_perawatan' => $_POST['tgl_perawatan'],
+        'jam_rawat' => $_POST['jam_rawat']
+      ];
+      if (!$table) {
+        http_response_code(403);
+        exit();
+      }
+
+      // Tindakan dokter & perawat adalah satu transaksi gabungan. Dokter IGD
+      // boleh menghapus transaksi ini walaupun dibuat oleh user lain, tetapi
+      // tetap pastikan targetnya memang ada agar tidak menerima kondisi bebas.
+      if ($table === 'rawat_jl_drpr') {
+        $target = $this->db($table);
+        foreach ($conditions as $field => $value) {
+          $target = $target->where($field, $value);
+        }
+        if (!$target->oneArray()) {
+          http_response_code(403);
+          exit();
+        }
+      } elseif (!$this->canDeleteOwnedRow($table, $conditions)) {
+        http_response_code(403);
+        exit();
+      }
       if($_POST['provider'] == 'rawat_jl_dr') {
         $this->db('rawat_jl_dr')
         ->where('no_rawat', $_POST['no_rawat'])
@@ -400,6 +457,8 @@ class Admin extends AdminModule
 
     public function postHapusResep()
     {
+      $ownerConditions = ['no_resep' => $_POST['no_resep'], 'no_rawat' => $_POST['no_rawat'] ?? ''];
+      if (!$this->canDeleteOwnedRow('resep_obat', $ownerConditions)) { http_response_code(403); exit(); }
       if(isset($_POST['kd_jenis_prw'])) {
         $this->db('resep_dokter')
         ->where('no_resep', $_POST['no_resep'])
@@ -477,6 +536,7 @@ class Admin extends AdminModule
 
     public function anyRincian()
     {
+      $currentUser = (string) $this->core->getUserInfo('username', null, true);
       $rows_rawat_jl_dr = $this->db('rawat_jl_dr')->where('no_rawat', $_POST['no_rawat'])->toArray();
       $rows_rawat_jl_pr = $this->db('rawat_jl_pr')->where('no_rawat', $_POST['no_rawat'])->toArray();
       $rows_rawat_jl_drpr = $this->db('rawat_jl_drpr')->where('no_rawat', $_POST['no_rawat'])->toArray();
@@ -493,6 +553,7 @@ class Admin extends AdminModule
           $row['nm_perawatan'] = $jns_perawatan['nm_perawatan'];
           $jumlah_total = $jumlah_total + $row['biaya_rawat'];
           $row['provider'] = 'rawat_jl_dr';
+          $row['can_delete'] = ((string) ($row['kd_dokter'] ?? '') === $currentUser);
           $rawat_jl_dr[] = $row;
         }
       }
@@ -503,6 +564,7 @@ class Admin extends AdminModule
           $row['nm_perawatan'] = $jns_perawatan['nm_perawatan'];
           $jumlah_total = $jumlah_total + $row['biaya_rawat'];
           $row['provider'] = 'rawat_jl_pr';
+          $row['can_delete'] = ((string) ($row['kd_dokter'] ?? $row['nip'] ?? '') === $currentUser);
           $rawat_jl_pr[] = $row;
         }
       }
@@ -513,6 +575,9 @@ class Admin extends AdminModule
           $row['nm_perawatan'] = $jns_perawatan['nm_perawatan'];
           $jumlah_total = $jumlah_total + $row['biaya_rawat'];
           $row['provider'] = 'rawat_jl_drpr';
+          // Provider gabungan dapat dihapus oleh dokter IGD meski bukan
+          // pembuat awal tindakan.
+          $row['can_delete'] = true;
           $rawat_jl_drpr[] = $row;
         }
       }
@@ -527,6 +592,7 @@ class Admin extends AdminModule
       $jumlah_total_resep = 0;
       foreach ($rows as $row) {
         $row['nomor'] = $i++;
+        $row['can_delete'] = ((string) ($row['kd_dokter'] ?? '') === $currentUser);
         $row['resep_dokter'] = $this->db('resep_dokter')->join('databarang', 'databarang.kode_brng=resep_dokter.kode_brng')->where('no_resep', $row['no_resep'])->toArray();
         foreach ($row['resep_dokter'] as $value) {
           $value['ralan'] = $value['jml'] * $value['ralan'];
@@ -545,6 +611,7 @@ class Admin extends AdminModule
       $jumlah_total_resep_racikan = 0;
       foreach ($rows_racikan as $row) {
         $row['nomor'] = $i++;
+        $row['can_delete'] = ((string) ($row['kd_dokter'] ?? '') === $currentUser);
         $row['resep_dokter_racikan_detail'] = $this->db('resep_dokter_racikan_detail')->join('databarang', 'databarang.kode_brng=resep_dokter_racikan_detail.kode_brng')->where('no_resep', $row['no_resep'])->toArray();
         foreach ($row['resep_dokter_racikan_detail'] as $value) {
           $value['ralan'] = $value['jml'] * $value['ralan'];
@@ -560,6 +627,7 @@ class Admin extends AdminModule
         ->toArray();
       $laboratorium = [];
       foreach ($rows_laboratorium as $row) {
+        $row['can_delete'] = ((string) ($row['dokter_perujuk'] ?? '') === $currentUser);
         $rows2 = $this->db('permintaan_pemeriksaan_lab')
           ->join('jns_perawatan_lab', 'jns_perawatan_lab.kd_jenis_prw=permintaan_pemeriksaan_lab.kd_jenis_prw')
           //->join('permintaan_detail_permintaan_lab', 'permintaan_detail_permintaan_lab.noorder=permintaan_pemeriksaan_lab.noorder')
@@ -596,6 +664,7 @@ class Admin extends AdminModule
 
       if($rows_radiologi) {
         foreach ($rows_radiologi as $row) {
+          $row['can_delete'] = ((string) ($row['dokter_perujuk'] ?? '') === $currentUser);
           $jns_perawatan = $this->db('jns_perawatan_radiologi')->where('kd_jenis_prw', $row['kd_jenis_prw'])->oneArray();
           $row['nm_perawatan'] = $jns_perawatan['nm_perawatan'];
           $row['kelas'] = $jns_perawatan['kelas'];
@@ -711,6 +780,7 @@ class Admin extends AdminModule
 
     public function postHapusNomorPermintaanLaboratorium()
     {
+      if (!$this->canDeleteOwnedRow('permintaan_lab', ['no_rawat'=>$_POST['no_rawat'], 'noorder'=>$_POST['noorder']])) { http_response_code(403); exit(); }
       $this->db('permintaan_lab')
       ->where('no_rawat', $_POST['no_rawat'])
       ->where('noorder', $_POST['noorder'])
@@ -723,6 +793,8 @@ class Admin extends AdminModule
 
     public function postHapusPermintaanLaboratorium()
     {
+      $parent = $this->db('permintaan_lab')->where('noorder', $_POST['noorder'])->oneArray();
+      if (!$parent || !$this->canDeleteOwnedRow('permintaan_lab', ['noorder'=>$_POST['noorder']])) { http_response_code(403); exit(); }
       $this->db('permintaan_pemeriksaan_lab')
       ->where('noorder', $_POST['noorder'])
       ->where('kd_jenis_prw', $_POST['kd_jenis_prw'])
@@ -746,11 +818,160 @@ class Admin extends AdminModule
 
     public function postHapusDetailPermintaan()
     {
+      if (!$this->canDeleteOwnedRow('permintaan_lab', ['noorder'=>$_POST['noorder']])) { http_response_code(403); exit(); }
       $this->db('permintaan_detail_permintaan_lab')
         ->where('noorder', $_POST['noorder'])
         ->where('kd_jenis_prw', $_POST['kd_jenis_prw'])
         ->where('id_template', $_POST['id_template'])
         ->delete();
+      exit();
+    }
+
+    public function postHapusPermintaanRadiologi()
+    {
+      if (!$this->canDeleteOwnedRow('permintaan_radiologi', ['noorder'=>$_POST['noorder'], 'no_rawat'=>$_POST['no_rawat']])) { http_response_code(403); exit(); }
+      $this->db('permintaan_pemeriksaan_radiologi')->where('noorder', $_POST['noorder'])->delete();
+      $this->db('permintaan_radiologi')->where('noorder', $_POST['noorder'])->where('no_rawat', $_POST['no_rawat'])->delete();
+      exit();
+    }
+
+    public function anyTriase()
+    {
+      $no_rawat = $_POST['no_rawat'] ?? $_GET['no_rawat'] ?? '';
+      $data = [
+        'igd' => $this->db('data_triase_igd')->where('no_rawat', $no_rawat)->oneArray(),
+        'primer' => $this->db('data_triase_igdprimer')->where('no_rawat', $no_rawat)->oneArray(),
+        'sekunder' => $this->db('data_triase_igdsekunder')->where('no_rawat', $no_rawat)->oneArray(),
+        // Vital sign juga dapat diisi lebih dulu melalui asesmen medis.
+        'asesmen' => $this->db('asesmen_medis_igd')->where('no_rawat', $no_rawat)->oneArray(),
+        'master' => []
+      ];
+      foreach ([1,2,3,4,5] as $skala) {
+        $data['master']['skala'.$skala] = $this->db('master_triase_skala'.$skala)
+          ->join('master_triase_pemeriksaan', 'master_triase_pemeriksaan.kode_pemeriksaan=master_triase_skala'.$skala.'.kode_pemeriksaan')
+          ->toArray();
+        $data['terpilih']['skala'.$skala] = $this->db('data_triase_igddetail_skala'.$skala)->where('no_rawat', $no_rawat)->toArray();
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode($data);
+      exit();
+    }
+
+    public function postSaveTriase()
+    {
+      $no_rawat = trim((string) ($_POST['no_rawat'] ?? ''));
+      if ($no_rawat === '') { http_response_code(422); echo json_encode(['ok'=>false,'message'=>'Nomor rawat kosong.']); exit(); }
+      $value = function($key, $default = '-') { $v = trim((string) ($_POST[$key] ?? '')); return $v === '' ? $default : $v; };
+      $triaseDate = trim((string) ($_POST['triase_datetime'] ?? ''));
+      if ($triaseDate !== '') {
+        $triaseDate = str_replace('T', ' ', $triaseDate);
+        $triaseDate = substr($triaseDate, 0, 19);
+        $parsedTriaseDate = strtotime($triaseDate);
+        if ($parsedTriaseDate === false) $triaseDate = date('Y-m-d H:i:s');
+        else $triaseDate = date('Y-m-d H:i:s', $parsedTriaseDate);
+      } else {
+        $triaseDate = date('Y-m-d H:i:s');
+      }
+      $nip = (string) $this->core->getUserInfo('username', null, true);
+      $jenis = ($_POST['jenis_triase'] ?? 'primer') === 'sekunder' ? 'sekunder' : 'primer';
+      $kd_dokter = $nip;
+      if (!$this->db('dokter')->where('kd_dokter', $kd_dokter)->oneArray()) {
+        $reg_triase = $this->db('reg_periksa')->where('no_rawat', $no_rawat)->oneArray();
+        if ($reg_triase && $this->db('dokter')->where('kd_dokter', $reg_triase['kd_dokter'])->oneArray()) $kd_dokter = $reg_triase['kd_dokter'];
+      }
+      $base = [
+        'no_rawat'=>$no_rawat, 'tgl_kunjungan'=>$triaseDate, 'cara_masuk'=>$value('cara_masuk', 'Jalan'),
+        'alat_transportasi'=>$value('alat_transportasi', 'Sendiri'), 'alasan_kedatangan'=>$value('alasan_kedatangan'),
+        'keterangan_kedatangan'=>$value('keterangan_kedatangan'), 'kode_kasus'=>$value('kode_kasus', '002'),
+        'tekanan_darah'=>$value('tekanan_darah'), 'nadi'=>$value('nadi'), 'pernapasan'=>$value('pernapasan'),
+        'bb'=>$value('bb'), 'suhu'=>$value('suhu'), 'saturasi_o2'=>$value('saturasi_o2'), 'nyeri'=>$value('nyeri'),
+        'emergency'=>$value('emergency', 'True Emergency'), 'nip'=>$nip
+      ];
+      $this->db('data_triase_igd')->save($base);
+      if ($jenis === 'primer') {
+        $this->db('data_triase_igdprimer')->save([
+          'no_rawat'=>$no_rawat, 'keluhan_utama'=>$value('keluhan_utama'), 'kebutuhan_khusus'=>$value('kebutuhan_khusus'),
+          'catatan'=>$value('catatan'), 'plan'=>$value('plan', 'Ruang Resusitasi'), 'tanggaltriase'=>$triaseDate, 'kd_dokter'=>$kd_dokter
+        ]);
+      } else {
+        $this->db('data_triase_igdsekunder')->save([
+          'no_rawat'=>$no_rawat, 'anamnesa_singkat'=>$value('anamnesa_singkat'), 'catatan'=>$value('catatan'),
+          'plan'=>$value('plan', 'Zona Kuning'), 'tanggaltriase'=>$triaseDate, 'kd_dokter'=>$kd_dokter
+        ]);
+      }
+      foreach ([1,2,3,4,5] as $skala) {
+        $table = 'data_triase_igddetail_skala'.$skala;
+        $this->db($table)->where('no_rawat', $no_rawat)->delete();
+        $items = json_decode($_POST['skala'.$skala] ?? '[]', true);
+        if (is_array($items)) foreach ($items as $kode) {
+          if (trim((string) $kode) !== '') $this->db($table)->save(['no_rawat'=>$no_rawat, 'kode_skala'.$skala=>trim((string) $kode)]);
+        }
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok'=>true, 'jenis'=>$jenis]);
+      exit();
+    }
+
+    public function anyAsesmenMedisIgd()
+    {
+      $no_rawat = trim((string) ($_POST['no_rawat'] ?? $_GET['no_rawat'] ?? ''));
+      $data = $this->db('asesmen_medis_igd')->where('no_rawat', $no_rawat)->oneArray();
+      // Jika triase dikerjakan lebih dulu, gunakan vital sign-nya sebagai nilai awal asesmen.
+      $triase = $this->db('data_triase_igd')->where('no_rawat', $no_rawat)->oneArray();
+      $image = $this->db('asesmen_medis_igd_image_marking')->where('no_rawat', $no_rawat)->oneArray();
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok'=>true, 'asesmen'=>$data ?: [], 'triase'=>$triase ?: [], 'image'=>$image ?: []]);
+      exit();
+    }
+
+    public function postSaveAsesmenMedisIgd()
+    {
+      $no_rawat = trim((string) ($_POST['no_rawat'] ?? ''));
+      if ($no_rawat === '') { http_response_code(422); echo json_encode(['ok'=>false,'message'=>'Nomor rawat kosong.']); exit(); }
+      $required = ['anamnesis','keadaan','kesadaran','kepala','mata','gigi','tht','thoraks','jantung','paru','abdomen','genital','ekstremitas','kulit'];
+      $value = function($key, $default = '') { $v = trim((string) ($_POST[$key] ?? '')); return $v === '' ? $default : $v; };
+      $reg = $this->db('reg_periksa')->where('no_rawat', $no_rawat)->oneArray();
+      if (!$reg) { http_response_code(404); echo json_encode(['ok'=>false,'message'=>'Registrasi tidak ditemukan.']); exit(); }
+
+      $imageUrl = '';
+      $imageData = trim((string) ($_POST['image_data'] ?? ''));
+      if ($imageData !== '') {
+        if (!defined('API_WEBSITE_URL') || !defined('API_WEBSITE_KEY') || API_WEBSITE_URL === '' || API_WEBSITE_KEY === '') {
+          http_response_code(500); echo json_encode(['ok'=>false,'message'=>'Konfigurasi API website belum diisi.']); exit();
+        }
+        $post = http_build_query(['no_rawat'=>$no_rawat, 'image_data'=>$imageData, 'token'=>API_WEBSITE_KEY]);
+        $ch = curl_init(API_WEBSITE_URL);
+        curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_POSTFIELDS=>$post, CURLOPT_HTTPHEADER=>['X-API-Key: '.API_WEBSITE_KEY, 'Content-Type: application/x-www-form-urlencoded'], CURLOPT_RETURNTRANSFER=>true, CURLOPT_CONNECTTIMEOUT=>8, CURLOPT_TIMEOUT=>30, CURLOPT_SSL_VERIFYPEER=>true]);
+        $response = curl_exec($ch); $curlError = curl_error($ch); $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        $decoded = is_string($response) ? json_decode($response, true) : null;
+        if ($curlError || $httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['ok'])) {
+          http_response_code(502); echo json_encode(['ok'=>false,'message'=>'Upload marking ke api-website gagal.','detail'=>$curlError ?: ($decoded['error'] ?? 'Respons API tidak valid.')]); exit();
+        }
+        $imageUrl = (string) ($decoded['url_image'] ?? '');
+      }
+
+      $now = date('Y-m-d H:i:s');
+      $asesmen = [
+        'no_rawat'=>$no_rawat, 'tanggal'=>date('Y-m-d'), 'jam'=>date('H:i:s'), 'kd_dokter'=>(string)($reg['kd_dokter'] ?? ''),
+        'anamnesis'=>$value('anamnesis','Autoanamnesis'), 'hubungan'=>$value('hubungan'), 'keluhan_utama'=>$value('keluhan_utama'),
+        'rps'=>$value('rps'), 'rpd'=>$value('rpd'), 'rpk'=>$value('rpk'), 'rpo'=>$value('rpo'), 'alergi'=>$value('alergi'),
+        'keadaan'=>$value('keadaan','Sehat'), 'gcs'=>$value('gcs'), 'kesadaran'=>$value('kesadaran','CM'), 'td'=>$value('td'),
+        'nadi'=>$value('nadi'), 'rr'=>$value('rr'), 'suhu'=>$value('suhu'), 'spo'=>$value('spo'), 'bb'=>$value('bb'), 'tb'=>$value('tb'),
+        'kepala'=>$value('kepala','Tidak Diperiksa'), 'mata'=>$value('mata','Tidak Diperiksa'), 'gigi'=>$value('gigi','Tidak Diperiksa'),
+        'tht'=>$value('tht','Tidak Diperiksa'), 'thoraks'=>$value('thoraks','Tidak Diperiksa'), 'jantung'=>$value('jantung','Tidak Diperiksa'),
+        'paru'=>$value('paru','Tidak Diperiksa'), 'abdomen'=>$value('abdomen','Tidak Diperiksa'), 'genital'=>$value('genital','Tidak Diperiksa'),
+        'ekstremitas'=>$value('ekstremitas','Tidak Diperiksa'), 'kulit'=>$value('kulit','Tidak Diperiksa'), 'ket_fisik'=>$value('ket_fisik'),
+        'ket_lokalis'=>$value('ket_lokalis'), 'lab'=>$value('lab'), 'rad'=>$value('rad'), 'penunjang'=>$value('penunjang'),
+        'diagnosis'=>$value('diagnosis'), 'tata'=>$value('tata'), 'edukasi'=>$value('edukasi')
+      ];
+      $this->db('asesmen_medis_igd')->where('no_rawat', $no_rawat)->delete();
+      $this->db('asesmen_medis_igd')->save($asesmen);
+      if ($imageUrl !== '') {
+        $this->db('asesmen_medis_igd_image_marking')->where('no_rawat', $no_rawat)->delete();
+        $this->db('asesmen_medis_igd_image_marking')->save(['no_rawat'=>$no_rawat,'tanggal'=>date('Y-m-d'),'jam'=>date('H:i:s'),'url_image'=>$imageUrl]);
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok'=>true,'message'=>'Asesmen medis IGD berhasil disimpan.','image'=>$imageUrl]);
       exit();
     }
 

@@ -1,0 +1,69 @@
+<div class="modal-header">
+  <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title">Laporan Bedah</h4>
+</div>
+<div class="modal-body">
+  <form id="form_laporan_bedah">
+    <input type="hidden" name="no_rawat" value="{$reg_periksa.no_rawat}">
+    <div class="alert alert-info">
+      {$reg_periksa.no_rawat} &mdash; {$reg_periksa.nm_pasien}
+    </div>
+    <div class="form-group">
+      <label>Template Laporan Bedah</label>
+      <select name="template_bedah" id="template_bedah" class="form-control">
+        <option value="">- pilih template bedah -</option>
+        {loop: $master_bedah as $template}
+        <option value="{$template.kd_p}">{$template.kd_p} - {$template.judul_p}</option>
+        {/loop}
+      </select>
+      <small class="text-muted">Memilih template akan mengisi Tindakan Bedah dan Laporan Bedah secara otomatis.</small>
+    </div>
+    <div class="row">
+      <div class="col-md-6"><div class="form-group"><label>Mulai</label><input type="datetime-local" name="mulai" class="form-control" value="{?=isset_or($laporan.mulai)?}"></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Selesai</label><input type="datetime-local" name="selesai" class="form-control" value="{?=isset_or($laporan.selesai)?}"></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Jenis Anestesi</label><select name="jenis_anestesi" class="form-control"><option value="">- pilih -</option><option value="Lokal"{if: isset_or($laporan.jenis_anestesi) == 'Lokal'} selected{/if}>Lokal</option><option value="Umum"{if: isset_or($laporan.jenis_anestesi) == 'Umum'} selected{/if}>Umum</option><option value="Spinal"{if: isset_or($laporan.jenis_anestesi) == 'Spinal'} selected{/if}>Spinal</option></select></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Jenis Pembedahan</label><select name="jenis_pembedahan" class="form-control"><option value="">- pilih -</option><option value="Bersih"{if: isset_or($laporan.jenis_pembedahan) == 'Bersih'} selected{/if}>Bersih</option><option value="Bersih terkontaminasi"{if: isset_or($laporan.jenis_pembedahan) == 'Bersih terkontaminasi'} selected{/if}>Bersih terkontaminasi</option><option value="Terkontaminasi"{if: isset_or($laporan.jenis_pembedahan) == 'Terkontaminasi'} selected{/if}>Terkontaminasi</option><option value="Kotor"{if: isset_or($laporan.jenis_pembedahan) == 'Kotor'} selected{/if}>Kotor</option></select></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Diagnosa Pre-operasi</label><textarea name="diagnosa_preop" class="form-control" rows="2">{?=isset_or($laporan.diagnosa_preop)?}</textarea></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Diagnosa Post-operasi</label><textarea name="diagnosa_postop" class="form-control" rows="2">{?=isset_or($laporan.diagnosa_postop)?}</textarea></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Jaringan</label><textarea name="jaringan" class="form-control" rows="2">{?=isset_or($laporan.jaringan)?}</textarea></div></div>
+      <div class="col-md-6"><div class="form-group"><label>Komplikasi</label><textarea name="komplikasi" class="form-control" rows="2">{?=isset_or($laporan.komplikasi)?}</textarea></div></div>
+      <div class="col-md-4"><div class="form-group"><label>Implan</label><input type="text" name="implan" class="form-control" value="{?=isset_or($laporan.implan)?}"></div></div>
+      <div class="col-md-4"><div class="form-group"><label>No. Implan</label><input type="text" name="no_implan" class="form-control" value="{?=isset_or($laporan.no_implan)?}"></div></div>
+      <div class="col-md-4"><div class="form-group"><label>Operator</label><select name="operator" class="form-control"><option value="">- pilih dokter -</option>{loop: $dokter as $d}<option value="{$d.kd_dokter}"{if: isset_or($laporan.operator) == $d.kd_dokter} selected{/if}>{$d.nm_dokter}</option>{/loop}</select></div></div>
+      <div class="col-md-12"><div class="form-group"><label>Tindakan Bedah</label><textarea name="tindakan_bedah" class="form-control" rows="3">{?=isset_or($laporan.tindakan_bedah)?}</textarea></div></div>
+      <div class="col-md-12"><div class="form-group"><label>Laporan Bedah</label><textarea name="laporan_bedah" class="form-control" rows="8">{?=isset_or($laporan.laporan_bedah)?}</textarea></div></div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  {if: $laporan}<button type="button" class="btn btn-danger pull-left" id="hapus_laporan_bedah"><i class="fa fa-trash"></i> Hapus</button>{/if}
+  <button type="button" class="btn btn-primary" id="simpan_laporan_bedah"><i class="fa fa-save"></i> Simpan</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
+</div>
+<script>
+(function(){
+  var baseURL = mlite.url + '/' + mlite.admin;
+  $(document).off('change.laporanBedahTemplate','#template_bedah').on('change.laporanBedahTemplate','#template_bedah',function(){
+    var kode = $(this).val();
+    if (!kode) return;
+    $.getJSON(baseURL + '/vedika/masterbedah/' + encodeURIComponent(kode) + '?t=' + encodeURIComponent(mlite.token), function(response){
+      if (!response || !response.ok || !response.template) return;
+      $('textarea[name=tindakan_bedah]').val(response.template.judul_p || '');
+      $('textarea[name=laporan_bedah]').val(response.template.isi_p || '');
+    });
+  });
+  function submitLaporan(aksi) {
+    var data = $('#form_laporan_bedah').serializeArray();
+    if (aksi) data.push({name:'aksi', value:aksi});
+    $.post(baseURL + '/vedika/savelaporanbedah?t=' + mlite.token, data)
+      .done(function(response){
+        if (typeof response === 'string') { try { response = JSON.parse(response); } catch(e) {} }
+        if (response && response.ok === false) return showToast(response.message || 'Gagal menyimpan laporan bedah', 'error');
+        $('#laporanBedahModal').one('hidden.bs.modal.laporanBedahReload', function(){ window.location.reload(); });
+        $('#laporanBedahModal').modal('hide');
+      }).fail(function(){ showToast('Gagal menyimpan laporan bedah', 'error'); });
+  }
+  $(document).off('click.laporanBedah','#simpan_laporan_bedah').on('click.laporanBedah','#simpan_laporan_bedah',function(){ submitLaporan('simpan'); });
+  $(document).off('click.laporanBedahHapus','#hapus_laporan_bedah').on('click.laporanBedahHapus','#hapus_laporan_bedah',function(){ if (confirm('Hapus laporan bedah ini?')) submitLaporan('hapus'); });
+})();
+</script>

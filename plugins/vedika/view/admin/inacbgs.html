@@ -19,7 +19,17 @@
 </div>
 <div class="modal-body" id="bridginginacbgs">
   <div style="margin-top:20px;">
-    <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
+    {if: !$worker_capture}
+    <div class="alert alert-warning" style="padding:8px 12px;">
+      <i class="fa fa-flask"></i> <strong>Mode uji manual.</strong>
+    </div>
+    {if: $get_claim_error}
+    <div class="alert alert-danger" style="padding:8px 12px; white-space:pre-wrap; word-break:break-word;">
+      <i class="fa fa-exclamation-triangle"></i> <strong>Data Klaim Lokal:</strong> {$get_claim_error}
+    </div>
+    {/if}
+    {/if}
+    <input type="hidden" name="t" value="{?=isset($_SESSION['token']) ? $_SESSION['token'] : ''?}">
     <div class="row">
     <div class="col col-md-3">
       <div class="form-group">
@@ -72,24 +82,20 @@
           <select class="form-control" name="nama_dokter">
           <option value='dr. Christi Ervina Hartanto, Sp.KFR'>dr. Christi Ervina Hartanto, Sp.KFR</option>
           </select>
-          <!--<input type="text" name="nama_dokter" class="form-control" value="dr. Christi Ervina Hartanto, Sp.KFR" readonly>-->
           {/if}
           
-          {if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli != 'U0021'}
+          {if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli == 'U0050'}
+          <select class="form-control" name="nama_dokter">
+          <option value='dr. Sari Purnama Hidayat, Sp.PD'>dr. Sari Purnama Hidayat, Sp.PD</option>
+          </select>
+          {/if}
+          
+          {if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli != 'U0021' && $reg_periksa.kd_poli != 'U0050'}
           <select class="form-control" name="nama_dokter">
           <option value='{$reg_periksa.nm_dokter}'>{$reg_periksa.nm_dokter}</option>
           </select>
-          <!--<input type="text" name="nama_dokter" class="form-control" value="{$reg_periksa.nm_dokter}" readonly>-->
           {/if}
-        <!--<select class="form-control" name="nama_dokter">-->
-          <!--{if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli == 'U0021'}-->
-          <!--<option value='dr. Christi Ervina Hartanto, Sp.KFR'>dr. Christi Ervina Hartanto, Sp.KFR</option>-->
-          <!--<option value='{$reg_periksa.nm_dokter}'>{$reg_periksa.nm_dokter}</option>-->
-          <!--{/if}-->
-          <!--{if: $reg_periksa.status_lanjut == 'Ralan' && $reg_periksa.kd_poli != 'U0021'}-->
-          <!--<option value='{$reg_periksa.nm_dokter}'>{$reg_periksa.nm_dokter}</option>-->
-          <!--{/if}-->
-        <!--</select>-->
+          
           {if: $reg_periksa.status_lanjut == 'Ranap'}
           <select class="form-control" name="nama_dokter">
             {loop: $reg_periksa.nm_dokter as $data}
@@ -187,44 +193,11 @@
           <div class="form-group">
             <label for="poli">Status Pulang</label>
             <select name="discharge_status" class="form-control">
-              {if: $reg_periksa.stts_pulang == 'Sembuh'}
-              <option value='1'>Atas persetujuan dokter</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Sehat'}
-              <option value='1'>Atas persetujuan dokter</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Rujuk'}
-              <option value='2'>Dirujuk</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Dirujuk'}
-              <option value='2'>Dirujuk</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'APS'}
-              <option value='3'>Atas permintaan sendiri</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Pulang Paksa'}
-              <option value='3'>Atas permintaan sendiri</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Meninggal'}
-              <option value='4'>Meninggal</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == '+'}
-              <option value='4'>Meninggal</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Atas Persetujuan Dokter'}
-              <option value='1'>Atas persetujuan dokter</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Atas Permintaan Sendiri'}
-              <option value='3'>Atas permintaan sendiri</option>
-              {/if}
-              {if: $reg_periksa.stts_pulang == 'Lain-lain'}
-              <option value='5'>Lain-lain</option>
-              {/if}
-              <option value='1'>Atas persetujuan dokter</option>
-              <option value='2'>Dirujuk</option>
-              <option value='3'>Atas permintaan sendiri</option>
-              <option value='4'>Meninggal</option>
-              <option value='5'>Lain-lain</option>
+              <option value='1'{if: $reg_periksa.discharge_status == '1'} selected{/if}>Atas persetujuan dokter</option>
+              <option value='2'{if: $reg_periksa.discharge_status == '2'} selected{/if}>Dirujuk</option>
+              <option value='3'{if: $reg_periksa.discharge_status == '3'} selected{/if}>Atas permintaan sendiri</option>
+              <option value='4'{if: $reg_periksa.discharge_status == '4'} selected{/if}>Meninggal</option>
+              <option value='5'{if: $reg_periksa.discharge_status == '5'} selected{/if}>Lain-lain</option>
             </select>
           </div>
         </div>
@@ -255,7 +228,7 @@
           <div class="col col-md-3">
           <div class="form-group">
             <label for="poli">No. SITB</label>
-            <input type="text" id="sitb" name="sitb" class="form-control" value="{$sitb.no_sitb}">
+            <input type="text" id="sitb" name="sitb" class="form-control" value="{?=isset($sitb['no_sitb']) ? $sitb['no_sitb'] : ''?}">
           </div>
         </div>
       </div>
@@ -849,6 +822,7 @@
     </div>
     </div>
   </div>
+  {if: !$worker_capture}
   <h3>Data Claim</h3>
   <div class="table-responsive">
     <table class="table nowrap" width="100%">
@@ -880,6 +854,7 @@
       </tbody>
     </table>
   </div>
+  {/if}
 </div>
 
 <div class="modal-footer">
@@ -915,6 +890,10 @@
     return "⏸ " + label;
   }
 
+  function escapeDebug(value) {
+    return $('<div>').text(value == null ? '' : String(value)).html();
+  }
+
   $("#bridginginacbgs")
     .off("click.simpanbridging", ".simpanbridging")
     .on("click.simpanbridging", ".simpanbridging", function (event) {
@@ -933,7 +912,7 @@
       if (name) dataForm[name] = $(this).val() || '';
     });
 
-    // Hardcode coder
+    // Satu akun coder yang terdaftar pada E-Klaim RS.
     dataForm['coder_nik'] = '123123123123';
 
     bootbox.confirm("Proses akan dilanjutkan sampai Kirim Data Center. Lanjutkan?", function (result) {
@@ -954,6 +933,7 @@
           ? false
           : (s.edit_klaim === true ? true : s.buat_klaim);
         var output = [
+          renderStep('Validasi diagnosis INACBG', s.validasi_diagnosa_inacbg),
           renderStep('Buat/Edit Klaim', siapkanKlaim),
           renderStep('Set Klaim', s.set_klaim),
           renderStep('Grouper IDRG', s.grouper_idrg),
@@ -964,9 +944,14 @@
           renderStep('Kirim Data Center', s.kirim_datacenter)
         ].join("\n");
 
+        var detail = JSON.stringify(res, null, 2);
         bootbox.alert({
           title: res.ok ? "Proses Klaim Selesai" : "Proses Klaim Terhenti",
-          message: "<pre style='text-align:left'>" + output + "</pre>"
+          message:
+            "<p><strong>Berhenti di tahap:</strong> " + escapeDebug(res.last_step || 'selesai') + "</p>" +
+            "<pre style='text-align:left'>" + escapeDebug(output) + "</pre>" +
+            "<p><strong>Respons lengkap:</strong></p>" +
+            "<pre style='text-align:left; max-height:340px; overflow:auto; white-space:pre-wrap'>" + escapeDebug(detail) + "</pre>"
         });
 
         if (!res.ok) {
@@ -975,7 +960,14 @@
 
       }, 'json').fail(function (xhr, status, error) {
         console.error("AJAX Error:", status, error);
-        bootbox.alert("Gagal menghubungi server.");
+        var raw = xhr && xhr.responseText ? xhr.responseText : '';
+        bootbox.alert({
+          title: 'Respons server tidak dapat dibaca',
+          message:
+            '<p>Status HTTP: <strong>' + escapeDebug(xhr.status) + '</strong></p>' +
+            '<pre style="text-align:left; max-height:420px; overflow:auto; white-space:pre-wrap">' +
+            escapeDebug(raw || (status + ': ' + error)) + '</pre>'
+        });
       }).always(function () {
         // Modal dan halaman lengkap tetap berada pada item yang sedang dibuka.
         tombol.prop('disabled', false).html('Set Klaim');

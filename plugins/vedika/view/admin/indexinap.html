@@ -73,13 +73,13 @@
                       <th>Data Pasien</th>
                       <th>Data Registrasi</th>
                       <th>Data Kunjungan</th>
-                      <th>Berkas Digital</th>
+                      <th>Kelengkapan Berkas</th>
                     </tr>
                   </thead>
                   <tbody>
                   {if: !empty($vedika.list)}
                     {loop: $vedika.list}
-                    <tr>
+                    <tr class="vedika-patient-row" data-no-rawat="{?=convertNorawat($value.no_rawat)?}">
                      
                       <td>{$value.nomor}</td>
                       <td>
@@ -101,12 +101,14 @@
                           <i class="fa fa-send"></i> Vclaim
                         </a>
                         {if: $value.no_sep == ''}
-                          <button class="btn btn-warning btn-xs">
+                          <button class="btn btn-warning btn-xs js-status-button">
                             <i class="fa fa-check"></i> Status
                           </button>
                           <br>    
+                        {elseif: $value.coding_blocked}
+                          <button type="button" class="btn btn-default btn-xs js-status-button" disabled title="Lengkapi koding dan berkas wajib terlebih dahulu"><i class="fa fa-lock"></i> Status</button><br><br>
                         {else}
-                          <a href="{$value.setstatusURL}" class="btn btn-success btn-xs" data-toggle="modal" data-target="#statusModal">
+                          <a href="{$value.setstatusURL}" class="btn btn-success btn-xs js-status-button" data-toggle="modal" data-target="#statusModal">
                             <i class="fa fa-check"></i> Status
                           </a>                             
                           {loop: $value.status_pengajuan as $data}
@@ -125,6 +127,9 @@
                           <a href="{?=url([ADMIN,'vedika','asesmenigd',$value.status_lanjut,convertNorawat($value.no_rawat)])?}" class="btn btn-xs btn-danger" data-toggle="modal" data-target="#statusModal">Asesmen IGD</a>
                           <br><br>
                           {/if}
+                          {if: $value.kd_poli == 'IGDK' || $value.kd_poli == 'U0034'}
+                          <a href="{?=url([ADMIN,'vedika','laporanbedah',$value.status_lanjut,convertNorawat($value.no_rawat)])?}" class="btn btn-xs btn-warning js-laporan-bedah"><i class="fa fa-medkit"></i> Laporan Bedah</a>
+                          {/if}
                       </td>
               <td> 
                         <table>
@@ -142,6 +147,9 @@
                           </tr>
                           <tr>
                             <td width='120px'>Jenis Kelamin</td><td>: {if: $value.jk == 'L'}Laki-Laki{else}Perempuan{/if}</td>
+                          </tr>
+                          <tr>
+                            <td width='120px'>Kunjungan Awal</td><td>: {if: $value.status_poli == 'Lama'}Tidak{else}<span style="display:inline-block; padding:2px 7px; border-radius:3px; background:#d9f2df; color:#267a3d; font-weight:600;">Ya</span>{/if}</td>
                           </tr>
                           <tr>
                             <td width='120px'>Alamat Pasien</td><td>: {?=substr($value.almt_pj, 0, strrpos(substr($value.almt_pj, 0, 20), ' '))?}</td>
@@ -196,8 +204,8 @@
                             {loop: $value.diagnosa_pasienx as $data}
                             - ({$data.kd_penyakit})-{$data.nm_penyakit}<br>
                             {/loop}
-                            </span>
-                            {if: $value.only_im_diagnosis}<span class="label label-warning"><i class="fa fa-exclamation-triangle"></i> Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG</span>{/if}
+                            </span><br><span class="js-diagnosis-validation">{if: $value.diagnosis_validation_message}<span class="label label-danger"><i class="fa fa-ban"></i> {$value.diagnosis_validation_message}</span>{/if}</span><br>
+                            {if: $value.only_im_diagnosis}<span class="js-only-im-warning label label-warning"><i class="fa fa-exclamation-triangle"></i> Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG</span>{else}<span class="js-only-im-warning"></span>{/if}
                             </td>
                           </tr>
                           <tr>
@@ -206,12 +214,26 @@
                             {loop: $value.prosedur_pasienx as $data}
                             - ({$data.kode})-{$data.deskripsi_pendek}<br>
                             {/loop}
-                            </span></td>
+                            </span><br><span class="js-procedure-validation">{if: $value.procedure_validation_message}<span class="label label-danger"><i class="fa fa-ban"></i> {$value.procedure_validation_message}</span>{/if}</span></td>
                           </tr>
                         </table>
                       </td>
                       <td>
                         <table>
+                          <tr>
+                            <td><a href="{?=url([ADMIN,'vedika','labhistory',convertNorawat($value.no_rawat)])?}" data-toggle="modal" data-target="#labHistoryModal" class="btn btn-warning btn-xs js-lab-history"><i class="fa fa-flask"></i> Ambil Riwayat Lab</a><br><br></td>
+                          </tr>
+                          {if: $value.kelas_rawat_mismatch}
+                          <tr><td><span class="label label-danger"><i class="fa fa-exclamation-triangle"></i> {$value.kelas_rawat_alert}</span><br><br></td></tr>
+                          {/if}
+                          {if: $value.radiology_expertise_missing}
+                          <tr><td><span class="label label-danger"><i class="fa fa-exclamation-triangle"></i> Hasil Ekspertise Belum ada</span><br><br></td></tr>
+                          {/if}
+                          <tbody class="js-required-documents">
+                          {loop: $value.required_document_alerts as $alert}
+                          <tr><td><span class="label label-warning"><i class="fa fa-exclamation-triangle"></i> {$alert}</span><br><br></td></tr>
+                          {/loop}
+                          </tbody>
                           {loop: $value.berkas_digital as $data}
                           <tr>
                             <td>- <a href="{?=url(WEBAPPS_URL)?}/berkasrawat/{$data.lokasi_file}" class="gallery">{$data.nama}</a> 
@@ -255,6 +277,12 @@
       </div>
   </div>
 </div>
+<div class="modal fade" id="laporanBedahModal" tabindex="-1" role="dialog"><div class="modal-dialog modal-lg" role="document"><div class="modal-content">...</div></div></div>
+<div class="modal fade" id="labHistoryModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" style="width:1050px;" role="document">
+    <div class="modal-content">...</div>
+  </div>
+</div>
 <div class="modal fade" id="riwayatModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-full" role="document">
       <div class="modal-content">
@@ -267,6 +295,36 @@ var no_rawat = $(this).attr("data-no_rawat");
 $('input:text[name=no_rawat]').val(no_rawat);
 </script>
 <script>
+$(document).off('click.laporanBedah', '.js-laporan-bedah').on('click.laporanBedah', '.js-laporan-bedah', function(e){
+  e.preventDefault(); var $m=$('#laporanBedahModal'), $c=$m.find('.modal-content'), url=$(this).attr('href');
+  $c.html('<div class="modal-body text-center"><i class="fa fa-spinner fa-spin"></i> Memuat laporan bedah...</div>');
+  $c.load(url + (url.indexOf('?')>=0?'&':'?')+'t='+encodeURIComponent(mlite.token), function(response, status){ if(status === 'error') $c.html('<div class="modal-body"><div class="alert alert-danger">Form laporan bedah gagal dimuat.</div></div>'); $m.modal('show'); }); return false;
+});
+</script>
+<script type="text/javascript">
+$(document).off('click.vedikaLabHistory', '.js-lab-history').on('click.vedikaLabHistory', '.js-lab-history', function(event){
+  event.preventDefault();
+  var $modal = $('#labHistoryModal');
+  var href = $(this).attr('href');
+  $modal.find('.modal-content').html('<div class="modal-body text-center"><i class="fa fa-spinner fa-spin"></i> Memuat riwayat laboratorium...</div>');
+  $modal.find('.modal-content').load(href + (href.indexOf('?') >= 0 ? '&' : '?') + 't=' + encodeURIComponent(mlite.token), function(response, status){
+    if (status === 'error') {
+      $modal.find('.modal-content').html('<div class="modal-body"><div class="alert alert-danger">Riwayat laboratorium gagal dimuat.</div></div>');
+    }
+    $modal.modal('show');
+  });
+});
+</script>
+<script type="text/javascript">
+(function(){
+  var ctx = null;
+  $(document).on('click.codingStatusInap','.js-ubah-medis',function(){ ctx={noRawat:$(this).attr('data-no-rawat'),status:$(this).attr('data-status')}; });
+  $(document).on('vedika:coding-updated.codingStatusInap',function(_,context,response){ updateStatus(context||ctx,response); });
+  $(document).on('hidden.bs.modal.codingStatusInap','#statusModal',function(){ if(!ctx)return; var c=ctx; ctx=null; $.getJSON(mlite.url+'/'+mlite.admin+'/vedika/ringkasanmedis/'+encodeURIComponent(c.status)+'/'+encodeURIComponent(c.noRawat)+'?t='+encodeURIComponent(mlite.token),function(r){updateStatus(c,r);}); });
+  function updateStatus(c,r){ if(!c||!r)return; var $row=$('.vedika-patient-row[data-no-rawat="'+c.noRawat.replace(/"/g,'\\"')+'"]'); if(!$row.length)return; var v=r.validation||{},$s=$row.find('.js-status-button').first(); if(!$s.length)return; if(v.blocked)$s.replaceWith('<button type="button" class="btn btn-default btn-xs js-status-button" disabled title="Perbaiki koding dan berkas wajib terlebih dahulu"><i class="fa fa-lock"></i> Status</button>'); else if(r.setstatus_url)$s.replaceWith($('<a>',{href:r.setstatus_url,'class':'btn btn-success btn-xs js-status-button','data-toggle':'modal','data-target':'#statusModal'}).append('<i class="fa fa-check"></i> Status')); }
+})();
+</script>
+<script>
 $( function() {
   $('.tanggal').datetimepicker({
     defaultDate: '{?=date('Y-m-d')?}',
@@ -275,4 +333,86 @@ $( function() {
   });
 } );
 $('.gallery').lightbox();
+</script>
+
+<script>
+(function(){
+  var liveCodingContext = null;
+
+  $(document)
+    .off('click.vedikaLiveRow', '.js-ubah-medis')
+    .on('click.vedikaLiveRow', '.js-ubah-medis', function(){
+      var $trigger = $(this);
+      liveCodingContext = {
+        noRawat: $trigger.attr('data-no-rawat'),
+        status: $trigger.attr('data-status')
+      };
+    })
+    .off('vedika:coding-updated.vedikaLiveRow')
+    .on('vedika:coding-updated.vedikaLiveRow', function(_, context, response){
+      var ctx = context || liveCodingContext;
+      if (!ctx || !response) return;
+      var $trigger = $('.js-ubah-medis').filter(function(){
+        return $(this).attr('data-no-rawat') === ctx.noRawat;
+      }).first();
+      var $row = $trigger.closest('tr.vedika-patient-row');
+      if (!$row.length) return;
+
+      $row.find('.js-ubah-medis').each(function(){
+        var target = $(this).attr('data-summary-target');
+        if (!target) return;
+        renderSummary($(target), target.indexOf('#diagnosa-') === 0 ? response.diagnosa : response.prosedur);
+      });
+
+      if (response.validation) {
+        renderValidation($row.find('.js-diagnosis-validation'), response.validation.diagnosis_message, 'danger');
+        renderValidation($row.find('.js-procedure-validation'), response.validation.procedure_message, 'danger');
+        renderOnlyIM($row.find('.js-only-im-warning'), !!response.validation.only_im);
+      }
+      renderRequiredDocuments($row.find('.js-required-documents'), response.required_document_alerts || []);
+    });
+
+  function renderSummary($target, items){
+    if (!$target.length) return;
+    $target.empty();
+    if (!items || !items.length) {
+      $target.text('-');
+      return;
+    }
+    $.each(items, function(_, item){
+      $target.append(document.createTextNode('- (' + item.kode + ')-' + (item.nama || item.deskripsi_pendek || '')), $('<br>'));
+    });
+  }
+
+  function renderValidation($target, message, type){
+    if (!$target.length) return;
+    $target.empty();
+    if (!message) return;
+    $('<span>', {'class':'label label-' + type})
+      .append($('<i>', {'class':'fa fa-ban'}))
+      .append(document.createTextNode(' ' + message))
+      .appendTo($target);
+  }
+
+  function renderOnlyIM($target, active){
+    if (!$target.length) return;
+    if (!active) { $target.empty(); return; }
+    $target.html('<span class="label label-warning"><i class="fa fa-exclamation-triangle"></i> Hanya kode IM - tambahkan diagnosis non-IM untuk INACBG</span>');
+  }
+
+  function renderRequiredDocuments($target, alerts){
+    if (!$target.length) return;
+    $target.empty();
+    $.each(alerts || [], function(_, message){
+      $('<tr>').append(
+        $('<td>').append(
+          $('<span>', {'class':'label label-warning'})
+            .append($('<i>', {'class':'fa fa-exclamation-triangle'}))
+            .append(document.createTextNode(' ' + message)),
+          $('<br>'), $('<br>')
+        )
+      ).appendTo($target);
+    });
+  }
+})();
 </script>

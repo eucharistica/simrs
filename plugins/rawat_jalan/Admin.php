@@ -1035,7 +1035,16 @@ class Admin extends AdminModule
         }
       }
 
-      echo $this->draw('rincian.html', ['rawat_jl_dr' => $rawat_jl_dr, 'rawat_jl_pr' => $rawat_jl_pr, 'rawat_jl_drpr' => $rawat_jl_drpr, 'jumlah_total' => $jumlah_total, 'no_rawat' => $_POST['no_rawat']]);
+      $resep = [];
+      $jumlah_total_resep = 0;
+      $rows_resep = $this->db('resep_obat')->join('dokter', 'dokter.kd_dokter=resep_obat.kd_dokter')->join('resep_dokter', 'resep_dokter.no_resep=resep_obat.no_resep')->where('resep_obat.no_rawat', $_POST['no_rawat'])->where('resep_obat.status', 'ralan')->group('resep_dokter.no_resep')->toArray();
+      foreach ($rows_resep as $row) {
+        $row['resep_dokter'] = $this->db('resep_dokter')->join('databarang', 'databarang.kode_brng=resep_dokter.kode_brng')->where('no_resep', $row['no_resep'])->toArray();
+        foreach ($row['resep_dokter'] as $item) $jumlah_total_resep += (float) $item['ralan'] * (float) $item['jml'];
+        $resep[] = $row;
+      }
+
+      echo $this->draw('rincian.html', ['rawat_jl_dr' => $rawat_jl_dr, 'rawat_jl_pr' => $rawat_jl_pr, 'rawat_jl_drpr' => $rawat_jl_drpr, 'resep' => $resep, 'jumlah_total' => $jumlah_total, 'jumlah_total_resep' => $jumlah_total_resep, 'no_rawat' => $_POST['no_rawat']]);
       exit();
     }
 
@@ -1127,6 +1136,69 @@ class Admin extends AdminModule
       exit();
     }
 
+    public function anyObat()
+    {
+      $obat = $this->db('databarang')
+        ->join('gudangbarang', 'gudangbarang.kode_brng=databarang.kode_brng')
+        ->where('databarang.status', '1')
+        ->where('gudangbarang.kd_bangsal', $this->settings->get('farmasi.deporalan'))
+        ->like('databarang.nama_brng', '%'.($_POST['obat'] ?? '').'%')
+        ->limit(10)->toArray();
+      echo $this->draw('obat.html', ['obat' => $obat]);
+      exit();
+    }
+
+    public function anyLaboratorium()
+    {
+      $laboratorium = $this->db('jns_perawatan_lab')->where('status', '1')
+        ->like('nm_perawatan', '%'.($_POST['laboratorium'] ?? '').'%')->limit(10)->toArray();
+      echo $this->draw('laboratorium.html', ['laboratorium' => $laboratorium]);
+      exit();
+    }
+
+    public function anyRadiologi()
+    {
+      $radiologi = $this->db('jns_perawatan_radiologi')->where('status', '1')
+        ->like('nm_perawatan', '%'.($_POST['radiologi'] ?? '').'%')->limit(10)->toArray();
+      echo $this->draw('radiologi.html', ['radiologi' => $radiologi]);
+      exit();
+    }
+
+    public function postSavePermintaan()
+    {
+      $kat = (string) ($_POST['kat'] ?? '');
+      $noRawat = (string) ($_POST['no_rawat'] ?? '');
+      $tanggal = !empty($_POST['tgl_perawatan']) ? $_POST['tgl_perawatan'] : date('Y-m-d');
+      $jam = $_POST['jam_rawat'] ?? date('H:i:s');
+      $kode = (string) ($_POST['kd_jenis_prw'] ?? '');
+      if (!$noRawat || !$kode || !in_array($kat, ['laboratorium', 'radiologi'], true)) { http_response_code(422); exit(); }
+      $dokter = $this->core->getUserInfo('username', null, true);
+      if (!$this->db('dokter')->where('kd_dokter', $dokter)->where('status', '1')->oneArray()) {
+        $reg = $this->db('reg_periksa')->where('no_rawat', $noRawat)->oneArray();
+        $dokter = $reg['kd_dokter'] ?? $dokter;
+      }
+      if ($kat === 'laboratorium') {
+        $parent = $this->db('permintaan_lab')->where('no_rawat', $noRawat)->where('tgl_permintaan', $tanggal)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
+        if (!$parent) {
+          $max = $this->db('permintaan_lab')->select(['noorder'=>'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', $tanggal)->oneArray();
+          $next = str_pad((string)((int)($max['noorder'] ?? 0)+1), 4, '0', STR_PAD_LEFT); $noorder = 'PK'.str_replace('-', '', $tanggal).$next;
+          $this->db('permintaan_lab')->save(['noorder'=>$noorder,'no_rawat'=>$noRawat,'tgl_permintaan'=>$tanggal,'jam_permintaan'=>$jam,'tgl_sampel'=>'0000-00-00','jam_sampel'=>'00:00:00','tgl_hasil'=>'0000-00-00','jam_hasil'=>'00:00:00','dokter_perujuk'=>$dokter,'status'=>'ralan','informasi_tambahan'=>trim((string)($_POST['informasi_tambahan'] ?? '')) ?: '-','diagnosa_klinis'=>trim((string)($_POST['diagnosa_klinis'] ?? '')) ?: '-','tambahan'=>'Tidak Cito']);
+          $this->db('permintaan_lab_order')->save(['noorder'=>$noorder,'jam_permintaan'=>$tanggal.' '.$jam,'jam_sampel'=>$tanggal.' 00:00:00','jam_hasil'=>$tanggal.' 00:00:00']);
+        } else { $noorder = $parent['noorder']; }
+        $this->db('permintaan_pemeriksaan_lab')->save(['noorder'=>$noorder,'kd_jenis_prw'=>$kode,'stts_bayar'=>'Belum']);
+        foreach ($this->db('template_laboratorium')->where('kd_jenis_prw', $kode)->toArray() as $tpl) $this->db('permintaan_detail_permintaan_lab')->save(['noorder'=>$noorder,'kd_jenis_prw'=>$kode,'id_template'=>$tpl['id_template'],'stts_bayar'=>'Belum']);
+      } else {
+        $parent = $this->db('permintaan_radiologi')->where('no_rawat', $noRawat)->where('tgl_permintaan', $tanggal)->where('tgl_sampel', '0000-00-00')->where('status', 'ralan')->oneArray();
+        if (!$parent) {
+          $max = $this->db('permintaan_radiologi')->select(['noorder'=>'ifnull(MAX(CONVERT(RIGHT(noorder,4),signed)),0)'])->where('tgl_permintaan', $tanggal)->oneArray();
+          $next = str_pad((string)((int)($max['noorder'] ?? 0)+1), 4, '0', STR_PAD_LEFT); $noorder = 'PR'.str_replace('-', '', $tanggal).$next;
+          $this->db('permintaan_radiologi')->save(['noorder'=>$noorder,'no_rawat'=>$noRawat,'tgl_permintaan'=>$tanggal,'jam_permintaan'=>$jam,'tgl_sampel'=>'0000-00-00','jam_sampel'=>'00:00:00','tgl_hasil'=>'0000-00-00','jam_hasil'=>'00:00:00','dokter_perujuk'=>$dokter,'status'=>'ralan','informasi_tambahan'=>trim((string)($_POST['informasi_tambahan'] ?? '')) ?: '-','diagnosa_klinis'=>trim((string)($_POST['diagnosa_klinis'] ?? '')) ?: '-','tambahan'=>'No Alarm']);
+        } else { $noorder = $parent['noorder']; }
+        $this->db('permintaan_pemeriksaan_radiologi')->save(['noorder'=>$noorder,'kd_jenis_prw'=>$kode,'stts_bayar'=>'Belum']);
+      }
+      header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok'=>true]); exit();
+    }
+
     public function anyBerkasDigital()
     {
       $berkas_digital = $this->db('berkas_digital_perawatan')->where('no_rawat', $_POST['no_rawat'])->toArray();
@@ -1213,7 +1285,7 @@ class Admin extends AdminModule
       if(isset($_POST["query"])){
         $output = '';
         $key = "%".$_POST["query"]."%";
-        $rows = $this->db('petugas')->like('nama', $key)->limit(10)->toArray();
+        $rows = $this->db('petugas')->like('nama', $key)->where('status', '1')->limit(10)->toArray();
         $output = '';
         if(count($rows)){
           foreach ($rows as $row) {
@@ -1225,6 +1297,28 @@ class Admin extends AdminModule
 
       exit();
 
+    }
+
+    public function anyCurrentProvider()
+    {
+      $username = (string) $this->core->getUserInfo('username', null, true);
+      $role = (string) $this->core->getUserInfo('role');
+      $user = $this->db('mlite_users')->where('username', $username)->oneArray();
+      if ($role === '' && !empty($user['role'])) {
+        $role = (string) $user['role'];
+      }
+      $dokter = $this->db('dokter')->where('kd_dokter', $username)->where('status', '1')->oneArray();
+      $petugas = $this->db('petugas')->where('nip', $username)->where('status', '1')->oneArray();
+      $fullname = (string) ($user['fullname'] ?? '');
+      if ($fullname === '' && $role === 'medis' && $dokter) {
+        $fullname = (string) ($dokter['nm_dokter'] ?? '');
+      }
+      if ($fullname === '' && $role === 'paramedis' && $petugas) {
+        $fullname = (string) ($petugas['nama'] ?? '');
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok'=>true,'username'=>$username,'role'=>$role,'fullname'=>$fullname,'dokter'=>$dokter ?: [],'petugas'=>$petugas ?: []]);
+      exit();
     }
 
     public function postCekWaktu()

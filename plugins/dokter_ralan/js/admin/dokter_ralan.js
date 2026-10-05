@@ -420,6 +420,155 @@ $("#form_soap").on("click", "#selesai_soap", function(event){
   $("#surat_kontrol").hide();
 });
 
+// buka form permintaan laboratorium dari form SOAP
+$("#form_soap").on("click", "#permintaan_lab_soap", function(event){
+  event.preventDefault();
+
+  var baseURL = mlite.url + '/' + mlite.admin;
+  var no_rawat = $('#form_soap input:text[name=no_rawat]').val();
+  var no_rkm_medis = $('#form_soap input:text[name=no_rkm_medis]').val();
+  var nm_pasien = $('#form_soap input:text[name=nm_pasien]').val();
+
+  if (!no_rawat) {
+    bootbox.alert('Nomor rawat belum tersedia. Silakan pilih pasien terlebih dahulu.');
+    return false;
+  }
+
+  var modal = $('#permintaanLabRadModal');
+  modal.find('#permintaanLabRadPasien').text('Pasien: ' + nm_pasien + ' | No. RM: ' + no_rkm_medis + ' | No. Rawat: ' + no_rawat);
+  modal.data('no_rawat', no_rawat);
+  modal.data('tgl_perawatan', $('#form_soap input:text[name=tgl_perawatan]').val());
+  modal.data('jam_rawat', $('#form_soap input:text[name=jam_rawat]').val());
+  modal.data('pemeriksaanDipilih', []);
+  modal.find('#modalLaboratorium, #modalRadiologi').val('');
+  modal.find('#modalLaboratoriumList, #modalRadiologiList').empty();
+  modal.find('#modalInformasi, #modalDiagnosa').val('');
+  modal.find('#modalPemeriksaanDipilih').html('<div class="text-muted">Belum ada pemeriksaan yang dipilih.</div>');
+  modal.modal('show');
+
+  function refreshPermintaan() {
+    $.post(baseURL + '/dokter_ralan/rincian?t=' + mlite.token, {no_rawat: no_rawat}, function(data) {
+      var wrapper = $('<div>').html(data);
+      var lab = wrapper.find('#lab').first().clone();
+      var rad = wrapper.find('#rad').first().clone();
+      var output = $('<div>');
+      if (lab.length) output.append(lab.removeAttr('id').show());
+      if (rad.length) output.append(rad.removeAttr('id').show());
+      modal.find('#modalPermintaanTersimpan').html(output.html() || '<div class="text-muted">Belum ada permintaan.</div>');
+    }).fail(function() {
+      modal.find('#modalPermintaanTersimpan').html('<div class="alert alert-danger">Gagal memuat permintaan.</div>');
+    });
+  }
+  modal.data('refreshPermintaan', refreshPermintaan);
+  refreshPermintaan();
+
+  return false;
+});
+
+$(document).on('input', '#permintaanLabRadModal #modalLaboratorium', function() {
+  var query = $(this).val();
+  var target = $('#modalLaboratoriumList');
+  if (query.length < 2) { target.empty(); return; }
+  $.post(mlite.url + '/' + mlite.admin + '/dokter_ralan/laboratorium?t=' + mlite.token, {laboratorium: query}, function(data) {
+    target.html(data);
+  }).fail(function() {
+    target.html('<div class="alert alert-danger">Pencarian laboratorium gagal.</div>');
+  });
+});
+
+$(document).on('input', '#permintaanLabRadModal #modalRadiologi', function() {
+  var query = $(this).val();
+  var target = $('#modalRadiologiList');
+  if (query.length < 2) { target.empty(); return; }
+  $.post(mlite.url + '/' + mlite.admin + '/dokter_ralan/radiologi?t=' + mlite.token, {radiologi: query}, function(data) {
+    target.html(data);
+  }).fail(function() {
+    target.html('<div class="alert alert-danger">Pencarian radiologi gagal.</div>');
+  });
+});
+
+function renderPemeriksaanDipilih(modal) {
+  var selected = modal.data('pemeriksaanDipilih') || [];
+  var html = '';
+  selected.forEach(function(value, index) {
+    html += '<div class="well well-sm" style="margin-bottom:5px;">'
+      + '<button type="button" class="close hapus-pemeriksaan-dipilih" data-index="' + index + '">&times;</button>'
+      + '<strong>' + $('<div>').text(value.nm_perawatan).html() + '</strong>'
+      + ' <small>(' + value.kat + ' | ' + value.kd_jenis_prw + ' | Rp. ' + value.biaya + ')</small></div>';
+  });
+  modal.find('#modalPemeriksaanDipilih').html(html || '<div class="text-muted">Belum ada pemeriksaan yang dipilih.</div>');
+}
+
+$(document).on('click', '#permintaanLabRadModal .pilih_laboratorium, #permintaanLabRadModal .pilih_radiologi', function(event) {
+  event.preventDefault();
+  var row = $(this);
+  var modal = $('#permintaanLabRadModal');
+  var item = {
+    kd_jenis_prw: row.attr('data-kd_jenis_prw') || '',
+    nm_perawatan: row.attr('data-nm_perawatan') || '',
+    biaya: row.attr('data-biaya') || '',
+    kat: row.attr('data-kat') || ''
+  };
+  var selected = modal.data('pemeriksaanDipilih') || [];
+  var duplicate = selected.some(function(value) {
+    return value.kat === item.kat && value.kd_jenis_prw === item.kd_jenis_prw;
+  });
+  if (!duplicate && item.kd_jenis_prw) selected.push(item);
+  modal.data('pemeriksaanDipilih', selected);
+  renderPemeriksaanDipilih(modal);
+  modal.find('#modalLaboratoriumList, #modalRadiologiList').empty();
+  modal.find('#modalLaboratorium, #modalRadiologi').val('');
+});
+
+$(document).on('click', '#permintaanLabRadModal .hapus-pemeriksaan-dipilih', function() {
+  var modal = $('#permintaanLabRadModal');
+  var selected = modal.data('pemeriksaanDipilih') || [];
+  selected.splice(parseInt($(this).attr('data-index'), 10), 1);
+  modal.data('pemeriksaanDipilih', selected);
+  renderPemeriksaanDipilih(modal);
+});
+
+$(document).on('click', '#permintaanLabRadModal #modalSimpanPermintaan', function(event) {
+  event.preventDefault();
+  var modal = $('#permintaanLabRadModal');
+  var selected = modal.data('pemeriksaanDipilih') || [];
+  var no_rawat = modal.data('no_rawat');
+  if (!selected.length || !no_rawat) {
+    bootbox.alert('Pilih minimal satu pemeriksaan Laboratorium atau Radiologi terlebih dahulu.');
+    return false;
+  }
+  var button = $(this).prop('disabled', true);
+  var payload = function(item) { return {
+    no_rawat: no_rawat,
+    kd_jenis_prw: item.kd_jenis_prw,
+    kat: item.kat,
+    tgl_perawatan: modal.data('tgl_perawatan'),
+    jam_rawat: modal.data('jam_rawat'),
+    informasi_tambahan: modal.find('#modalInformasi').val() || '-',
+    diagnosa_klinis: modal.find('#modalDiagnosa').val() || '-'
+  }; };
+  var saveNext = function(index) {
+    if (index >= selected.length) {
+      modal.data('pemeriksaanDipilih', []);
+      modal.find('#modalInformasi, #modalDiagnosa').val('');
+      modal.find('#modalPemeriksaanDipilih').html('<div class="text-muted">Belum ada pemeriksaan yang dipilih.</div>');
+      var refresh = modal.data('refreshPermintaan');
+      if (typeof refresh === 'function') refresh();
+      button.prop('disabled', false);
+      bootbox.alert('Sebanyak ' + selected.length + ' pemeriksaan berhasil disimpan.');
+      return;
+    }
+    $.post(mlite.url + '/' + mlite.admin + '/dokter_ralan/savedetail?t=' + mlite.token, payload(selected[index]))
+      .done(function() { saveNext(index + 1); })
+      .fail(function() {
+        button.prop('disabled', false);
+        bootbox.alert('Penyimpanan berhenti pada pemeriksaan ke-' + (index + 1) + '.');
+      });
+  };
+  saveNext(0);
+  return false;
+});
+
 // $("#form_soap").on("click",".clear_soap", function(event){
 //   $('input:text[name=suhu_tubuh]').val("-");
 //   $('input:text[name=tensi]').val("-");

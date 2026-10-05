@@ -131,11 +131,14 @@
         </div>
         <div class="m-t-xl">
           <button type="button" name="button" class="btn btn-primary" id="simpan_soap"><i class="fa fa-save"></i><span class="hidden-xs"> Simpan</span></button>
+          <button type="button" name="button" class="btn btn-success" id="selesai_soap"><i class="fa fa-check"></i><span class="hidden-xs"> Selesai</span></button>
+          <button type="button" name="button" class="btn btn-warning" id="buka_tindakan_soap"><i class="fa fa-plus"></i><span class="hidden-xs"> Tindakan</span></button>
+          <button type="button" name="button" class="btn btn-info" id="buka_eresep_soap"><i class="fa fa-medkit"></i><span class="hidden-xs"> E-Resep</span></button>
+          <button type="button" name="button" class="btn btn-primary" id="buka_lab_rad_soap"><i class="fa fa-flask"></i><span class="hidden-xs"> Permintaan Lab/Rad</span></button>
           <span class="{if: $admin_mode == 'simple'}hidden{/if}">
           <button type="button" name="button" class="btn btn-danger" id="buka_icd10dan9"><i class="fa fa-download"></i><span class="hidden-xs"> ICD 10 & 9</span></button>
           </span>
           <button type="button" name="button" class="btn btn-info" id="buka_riwayat"><i class="fa fa-file-o"></i><span class="hidden-xs"> Riwayat</span></button>
-          <button type="button" name="button" class="btn btn-success" id="selesai_soap"><i class="fa fa-check"></i><span class="hidden-xs"> Selesai</span></button>
           <a href="#" class="btn btn-info pull-right" id="odontogram"><i class="fa fa-bell"></i><span class="hidden-xs"> Odontogram</span></a>
         </div>
       </div>
@@ -251,6 +254,26 @@
     $('#kesadaranList').fadeOut();
   });
 </script>
+
+<div class="modal fade" id="eresepSoapRalanModal" tabindex="-1" role="dialog"><div class="modal-dialog modal-lg" role="document"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button><h4 class="modal-title"><i class="fa fa-medkit"></i> E-Resep</h4></div><div class="modal-body"><div class="alert alert-info" id="ralanEresepPasien"></div><div class="form-group"><label>Cari Obat/BHP</label><input class="form-control" id="ralanEresepObat" placeholder="Ketik nama obat/BHP"><div id="ralanEresepObatList"></div></div><div class="panel panel-default"><div class="panel-heading"><strong>Obat yang dipilih</strong></div><div class="panel-body" id="ralanEresepDipilih"><div class="text-muted">Belum ada obat yang dipilih.</div></div></div><div class="row"><div class="col-md-8"><label>Aturan Pakai</label><input class="form-control" id="ralanEresepAturan" placeholder="Contoh: 3 x sehari 1 tablet"></div><div class="col-md-4"><label>Jumlah</label><input class="form-control" id="ralanEresepJumlah" value="10"></div></div><button type="button" class="btn btn-primary m-t-md" id="simpanEresepSoapRalan"><i class="fa fa-save"></i> Simpan E-Resep</button><div class="m-t-md" id="ralanEresepStatus"></div></div></div></div></div>
+<div class="modal fade" id="labRadSoapRalanModal" tabindex="-1" role="dialog"><div class="modal-dialog modal-lg" role="document"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button><h4 class="modal-title"><i class="fa fa-flask"></i> Permintaan Laboratorium / Radiologi</h4></div><div class="modal-body"><div class="alert alert-info" id="ralanLabRadPasien"></div><div class="row"><div class="col-md-6"><label>Cari Laboratorium</label><input class="form-control" id="ralanCariLab"><div id="ralanCariLabList"></div></div><div class="col-md-6"><label>Cari Radiologi</label><input class="form-control" id="ralanCariRad"><div id="ralanCariRadList"></div></div></div><div class="panel panel-default m-t-md"><div class="panel-heading"><strong>Pemeriksaan yang dipilih</strong></div><div class="panel-body" id="ralanLabRadDipilih"><div class="text-muted">Belum ada pemeriksaan yang dipilih.</div></div></div><div class="form-group"><label>Informasi Tambahan</label><textarea class="form-control" id="ralanLabRadInformasi" rows="2"></textarea></div><div class="form-group"><label>Diagnosa Klinis</label><input class="form-control" id="ralanLabRadDiagnosa"></div><button type="button" class="btn btn-primary" id="simpanLabRadSoapRalan"><i class="fa fa-save"></i> Simpan Permintaan</button><div class="m-t-md" id="ralanLabRadStatus"></div></div></div></div></div>
+
+<div class="modal fade" id="tindakanSoapRalanModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header"><button type="button" class="close" data-dismiss="modal">&times;</button><h4 class="modal-title"><i class="fa fa-medkit"></i> Input Tindakan</h4></div>
+      <div class="modal-body">
+        <div class="row"><div class="col-md-6"><div class="form-group"><label>Tanggal</label><input class="form-control" id="ralanTindakanTanggal"></div></div><div class="col-md-6"><div class="form-group"><label>Jam</label><input class="form-control" id="ralanTindakanJam"></div></div></div>
+        <div class="form-group"><label>Id Rawat</label><input class="form-control" id="ralanTindakanNoRawat" readonly></div>
+        <div class="form-group"><label>Nama Pasien</label><input class="form-control" id="ralanTindakanNamaPasien" readonly></div>
+        <div class="form-group"><label>Cari Tindakan / Layanan</label><input class="form-control" id="ralanTindakanLayanan" placeholder="Ketik nama tindakan"><div id="ralanTindakanLayananList"></div></div>
+        <div class="panel panel-default"><div class="panel-heading"><strong>Tindakan yang dipilih</strong></div><div class="panel-body" id="ralanTindakanDipilih"><div class="text-muted">Belum ada tindakan yang dipilih.</div></div></div>
+        <div id="ralanTindakanProviderFields" style="display:none"><div class="form-group"><label>Jenis Provider</label><select class="form-control" id="ralanTindakanProvider"><option value="">Pilih provider</option><option value="rawat_jl_dr">Dokter</option><option value="rawat_jl_pr">Perawat</option><option value="rawat_jl_drpr">Dokter &amp; Perawat</option></select></div><div class="row"><div class="col-md-6" id="ralanTindakanDokterGroup" style="display:none"><label>Nama Dokter</label><input class="form-control" id="ralanTindakanDokter"><input type="hidden" id="ralanTindakanKdDokter"><div id="ralanTindakanDokterList"></div></div><div class="col-md-6" id="ralanTindakanPerawatGroup" style="display:none"><label>Nama Perawat</label><input class="form-control" id="ralanTindakanPerawat"><input type="hidden" id="ralanTindakanKdNip"><div id="ralanTindakanPerawatList"></div></div></div></div>
+        <button type="button" class="btn btn-primary" id="simpanTindakanSoapRalan"><i class="fa fa-save"></i> Masukkan Rincian</button><div class="m-t-md" id="ralanTindakanStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <script type="text/javascript">
   $(document).ready(function () {
     $("#icd10dan9").hide();

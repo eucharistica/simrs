@@ -1,0 +1,121 @@
+<style>
+  .laporan-bedah-table td, .laporan-bedah-table th { vertical-align: top; }
+  .laporan-bedah-table .long-text { min-width: 260px; white-space: pre-wrap; }
+  @media print { .no-print, form, .panel-heading, .dataTables_filter, .dataTables_paginate { display:none!important; } }
+</style>
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h3 class="panel-title">Laporan Bedah</h3>
+  </div>
+  <div class="panel-body">
+    <form action="{?=url([ADMIN,'operasi','savelaporanbedah'])?}" method="POST" id="form-laporan-bedah">
+      <input type="hidden" name="aksi" value="simpan">
+      <div class="row">
+        <div class="col-md-4">
+          <div class="form-group" id="cari_pasien_bedah">
+            <label>Cari Nomor Rawat</label>
+            <input type="text" name="pasien_cari" class="form-control" autocomplete="off" placeholder="Ketik nomor rawat">
+            <div id="hasil_pasien_bedah"></div>
+          </div>
+          <div class="form-group">
+            <label>Nomor Rawat</label>
+            <input type="text" name="no_rawat" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Nomor RM</label>
+            <input type="text" name="no_rkm_medis" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label>Nama Pasien</label>
+            <input type="text" name="nm_pasien" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label>Operator</label>
+            <select name="operator" class="form-control" required>
+              <option value="">Pilih dokter operator</option>
+              {loop: $dokter}
+              <option value="{$value.kd_dokter}">{$value.nm_dokter}</option>
+              {/loop}
+            </select>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <div class="row">
+            <div class="col-md-6"><div class="form-group"><label>Tanggal Mulai</label><input type="text" name="mulai" class="form-control tanggal-bedah" required></div></div>
+            <div class="col-md-6"><div class="form-group"><label>Tanggal Selesai</label><input type="text" name="selesai" class="form-control tanggal-bedah" required></div></div>
+          </div>
+          <div class="row">
+            <div class="col-md-6"><div class="form-group"><label>Jenis Anestesi</label><select name="jenis_anestesi" class="form-control"><option>Lokal</option><option>Umum</option><option>Spinal</option></select></div></div>
+            <div class="col-md-6"><div class="form-group"><label>Jenis Pembedahan</label><select name="jenis_pembedahan" class="form-control"><option>Bersih</option><option>Bersih terkontaminasi</option><option>Terkontaminasi</option><option>Kotor</option></select></div></div>
+          </div>
+          <div class="row">
+            <div class="col-md-6"><div class="form-group"><label>Diagnosa Pre Operasi</label><input type="text" name="diagnosa_preop" class="form-control"></div></div>
+            <div class="col-md-6"><div class="form-group"><label>Diagnosa Post Operasi</label><input type="text" name="diagnosa_postop" class="form-control"></div></div>
+          </div>
+          <div class="row">
+            <div class="col-md-6"><div class="form-group"><label>Jaringan Dieksisi/Insisi</label><input type="text" name="jaringan" class="form-control"></div></div>
+            <div class="col-md-6"><div class="form-group"><label>Komplikasi</label><input type="text" name="komplikasi" class="form-control"></div></div>
+          </div>
+          <div class="row">
+            <div class="col-md-6"><div class="form-group"><label>Implan</label><input type="text" name="implan" class="form-control"></div></div>
+            <div class="col-md-6"><div class="form-group"><label>Nomor Implan</label><input type="text" name="no_implan" class="form-control"></div></div>
+          </div>
+          <div class="form-group"><label>Tindakan Pembedahan</label><textarea name="tindakan_bedah" class="form-control" rows="3" maxlength="500"></textarea></div>
+          <div class="form-group"><label>Laporan Pembedahan</label><textarea name="laporan_bedah" class="form-control" rows="7" maxlength="1000" required></textarea></div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Simpan / Perbarui</button>
+      <button type="button" class="btn btn-default" id="reset-laporan-bedah">Baru</button>
+    </form>
+  </div>
+</div>
+
+<div class="panel panel-default">
+  <div class="panel-heading"><strong>Riwayat Laporan Bedah</strong></div>
+  <div class="panel-body">
+    <form method="GET" class="form-inline no-print" style="margin-bottom:15px;">
+      <input type="date" name="start" value="{$start}" class="form-control">
+      <input type="date" name="end" value="{$end}" class="form-control">
+      <input type="text" name="s" value="{$search}" class="form-control" placeholder="No. rawat/RM/nama">
+      <button class="btn btn-primary" type="submit"><i class="fa fa-search"></i> Cari</button>
+      <button class="btn btn-default" type="button" onclick="window.print()"><i class="fa fa-print"></i> Cetak</button>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-striped table-bordered laporan-bedah-table dataTables" width="100%">
+        <thead><tr><th>No.Rawat</th><th>No.RM</th><th>Pasien</th><th>Operator</th><th>Mulai</th><th>Selesai</th><th>Diagnosa</th><th>Anestesi/Pembedahan</th><th>Tindakan & Laporan</th><th class="no-print">Aksi</th></tr></thead>
+        <tbody>
+        {loop: $laporanbedah}
+          <tr class="row-laporan-bedah"
+            data-no-rawat="{$value.no_rawat}" data-no-rkm-medis="{$value.no_rkm_medis}" data-nm-pasien="{$value.nm_pasien}"
+            data-operator="{$value.operator}" data-mulai="{$value.mulai}" data-selesai="{$value.selesai}"
+            data-jenis-anestesi="{$value.jenis_anestesi}" data-jenis-pembedahan="{$value.jenis_pembedahan}"
+            data-diagnosa-preop="{$value.diagnosa_preop}" data-diagnosa-postop="{$value.diagnosa_postop}"
+            data-jaringan="{$value.jaringan}" data-komplikasi="{$value.komplikasi}" data-implan="{$value.implan}" data-no-implan="{$value.no_implan}"
+            data-tindakan-bedah="{$value.tindakan_bedah}" data-laporan-bedah="{$value.laporan_bedah}">
+            <td>{$value.no_rawat}</td><td>{$value.no_rkm_medis}</td><td>{$value.nm_pasien}</td><td>{$value.nm_dokter}</td>
+            <td>{$value.mulai}</td><td>{$value.selesai}</td><td class="long-text">Pre: {$value.diagnosa_preop}<br>Post: {$value.diagnosa_postop}</td>
+            <td>{$value.jenis_anestesi}<br>{$value.jenis_pembedahan}</td><td class="long-text">{$value.tindakan_bedah}<br>{$value.laporan_bedah}</td>
+            <td class="no-print"><button type="button" class="btn btn-info btn-xs edit-laporan-bedah"><i class="fa fa-edit"></i> Edit</button><button type="button" class="btn btn-danger btn-xs hapus-laporan-bedah"><i class="fa fa-trash"></i></button></td>
+          </tr>
+        {/loop}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+$(function(){
+  $('.tanggal-bedah').datetimepicker({format:'YYYY-MM-DD HH:mm:ss',locale:'id'});
+  $('.dataTables').DataTable({order:[[4,'desc']],scrollX:true,lengthChange:false});
+  $('input[name=pasien_cari]').on('input',function(){
+    var v=$(this).val(); if(!v){$('#hasil_pasien_bedah').empty();return;}
+    $.post(mlite.url+'/'+mlite.admin+'/operasi/pasien?t='+mlite.token,{cari:v},function(html){$('#hasil_pasien_bedah').html(html);});
+  });
+  $('#hasil_pasien_bedah').on('click','.pilih',function(e){e.preventDefault();$('input[name=no_rawat]').val($(this).data('no_rawat'));$('input[name=no_rkm_medis]').val($(this).data('no_rkm_medis'));$('input[name=nm_pasien]').val($(this).data('nm_pasien'));$('#hasil_pasien_bedah').empty();});
+  $('.edit-laporan-bedah').on('click',function(){var r=$(this).closest('tr'); var f=$('#form-laporan-bedah'); ['no-rawat','no-rkm-medis','nm-pasien','operator','mulai','selesai','jenis-anestesi','jenis-pembedahan','diagnosa-preop','diagnosa-postop','jaringan','komplikasi','implan','no-implan','tindakan-bedah','laporan-bedah'].forEach(function(k){var n=k.replace(/-([a-z])/g,function(_,c){return '_'+c;}); f.find('[name='+n+']').val(r.attr('data-'+k));}); f.find('[name=aksi]').val('simpan'); window.scrollTo(0,0);});
+  $('.hapus-laporan-bedah').on('click',function(){if(!confirm('Hapus laporan bedah ini?'))return; var f=$('#form-laporan-bedah'); f.find('[name=no_rawat]').val($(this).closest('tr').attr('data-no-rawat')); f.find('[name=aksi]').val('hapus'); f.trigger('submit');});
+  $('#reset-laporan-bedah').on('click',function(){document.getElementById('form-laporan-bedah').reset();$('input[name=no_rawat],input[name=no_rkm_medis],input[name=nm_pasien]').val('');});
+});
+</script>

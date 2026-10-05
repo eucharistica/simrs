@@ -7,6 +7,158 @@ $("#histori_pelayanan").hide();
 $("#notif").hide();
 $('#provider').hide();
 $('#aturan_pakai').hide();
+
+// Klik nomor kunjungan langsung membuka SOAP pasien tersebut.
+$("#display").on("click", ".buka_soap", function(event){
+  event.preventDefault();
+  $(this).closest('tr').find('a[href="#soap"]').first().trigger('click');
+  return false;
+});
+
+function renderRalanTindakanDipilih(modal) {
+  var list = modal.data('tindakanDipilih') || [], box = modal.find('#ralanTindakanDipilih');
+  if (!list.length) { box.html('<div class="text-muted">Belum ada tindakan yang dipilih.</div>'); return; }
+  var html = '';
+  list.forEach(function(item, index) {
+    html += '<div class="well well-sm" style="margin-bottom:5px"><strong>' + item.nama + '</strong> <small>(' + item.kode + ')</small>'
+      + '<button type="button" class="close hapus-ralan-tindakan" data-index="' + index + '">&times;</button></div>';
+  });
+  box.html(html);
+}
+
+function renderRalanEresep(modal) {
+  var list = modal.data('resepDipilih') || [], box = modal.find('#ralanEresepDipilih');
+  if (!list.length) { box.html('<div class="text-muted">Belum ada obat yang dipilih.</div>'); return; }
+  var html = ''; list.forEach(function(item, index) { html += '<div class="well well-sm" style="margin-bottom:5px"><strong>'+item.nama+'</strong> <small>('+item.kode+')</small><button type="button" class="close hapus-ralan-obat" data-index="'+index+'">&times;</button></div>'; }); box.html(html);
+}
+function renderRalanLabRad(modal) {
+  var list = modal.data('labRadDipilih') || [], box = modal.find('#ralanLabRadDipilih');
+  if (!list.length) { box.html('<div class="text-muted">Belum ada pemeriksaan yang dipilih.</div>'); return; }
+  var html = ''; list.forEach(function(item, index) { html += '<div class="well well-sm" style="margin-bottom:5px"><strong>'+item.nama+'</strong> <small>('+item.kat+')</small><button type="button" class="close hapus-ralan-labrad" data-index="'+index+'">&times;</button></div>'; }); box.html(html);
+}
+
+$(document).on('click', '#form_soap #buka_eresep_soap', function(event){
+  event.preventDefault(); var form=$('#form_soap'), modal=$('#eresepSoapRalanModal'), noRawat=$.trim(String(form.find('input:text[name=no_rawat]').val()||''));
+  if(!noRawat){bootbox.alert('Nomor rawat belum tersedia.');return false;} modal.data({no_rawat:noRawat,resepDipilih:[],currentProvider:null}); renderRalanEresep(modal); modal.find('#ralanEresepPasien').text('Pasien: '+(form.find('input:text[name=nm_pasien]').val()||'')+' | No. Rawat: '+noRawat); modal.find('#ralanEresepObat,#ralanEresepAturan').val(''); modal.find('#ralanEresepJumlah').val('10'); modal.find('#ralanEresepObatList,#ralanEresepStatus').empty(); $.get(mlite.url+'/'+mlite.admin+'/rawat_jalan/currentprovider?t='+mlite.token,function(data){modal.data('currentProvider',data||{});}); modal.modal('show'); return false;
+});
+$(document).on('keyup','#ralanEresepObat',function(){var q=$.trim($(this).val()),box=$('#ralanEresepObatList');if(!q){box.empty();return;}$.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/obat?t='+mlite.token,{obat:q},function(html){box.html(html);});});
+$(document).on('click','#ralanEresepObatList .pilih_obat',function(e){e.preventDefault();var x=$(this),m=$('#eresepSoapRalanModal'),list=m.data('resepDipilih')||[],item={kode:x.data('kode_brng'),nama:x.data('nama_brng')};if(!list.some(function(v){return v.kode===item.kode;}))list.push(item);m.data('resepDipilih',list);renderRalanEresep(m);m.find('#ralanEresepObat').val('').focus();m.find('#ralanEresepObatList').empty();});
+$(document).on('click','#eresepSoapRalanModal .hapus-ralan-obat',function(){var m=$('#eresepSoapRalanModal'),list=m.data('resepDipilih')||[];list.splice(parseInt($(this).data('index'),10),1);m.data('resepDipilih',list);renderRalanEresep(m);});
+$(document).on('click','#simpanEresepSoapRalan',function(){var m=$('#eresepSoapRalanModal'),list=m.data('resepDipilih')||[],u=m.data('currentProvider')||{},b=$(this),tgl=$('#form_soap input:text[name=tgl_perawatan]').val(),jam=$('#form_soap input:text[name=jam_rawat]').val(),kd=u.dokter&&u.dokter.kd_dokter?u.dokter.kd_dokter:'';if(!list.length){bootbox.alert('Pilih minimal satu obat.');return;}if(!kd){bootbox.alert('User login belum terhubung ke data dokter aktif.');return;}b.prop('disabled',true);var save=function(i){if(i>=list.length){m.find('#ralanEresepStatus').html('<div class="alert alert-success">E-Resep berhasil disimpan.</div>');setTimeout(function(){m.modal('hide');},600);b.prop('disabled',false);return;}var x=list[i];$.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/savedetail?t='+mlite.token,{no_rawat:m.data('no_rawat'),kd_jenis_prw:x.kode,provider:'rawat_jl_dr',kode_provider:kd,kode_provider2:'',tgl_perawatan:tgl,jam_rawat:jam,kat:'obat',jml:m.find('#ralanEresepJumlah').val()||'1',aturan_pakai:m.find('#ralanEresepAturan').val()||'-'}).done(function(){save(i+1);}).fail(function(){m.find('#ralanEresepStatus').html('<div class="alert alert-danger">E-Resep gagal disimpan.</div>');b.prop('disabled',false);});};save(0);});
+
+$(document).on('click','#form_soap #buka_lab_rad_soap',function(e){e.preventDefault();var f=$('#form_soap'),m=$('#labRadSoapRalanModal'),no=$.trim(String(f.find('input:text[name=no_rawat]').val()||''));if(!no){bootbox.alert('Nomor rawat belum tersedia.');return false;}m.data({no_rawat:no,labRadDipilih:[]});renderRalanLabRad(m);m.find('#ralanLabRadPasien').text('Pasien: '+(f.find('input:text[name=nm_pasien]').val()||'')+' | No. Rawat: '+no);m.find('#ralanCariLab,#ralanCariRad,#ralanLabRadInformasi,#ralanLabRadDiagnosa').val('');m.find('#ralanCariLabList,#ralanCariRadList,#ralanLabRadStatus').empty();m.modal('show');return false;});
+$(document).on('keyup','#ralanCariLab,#ralanCariRad',function(){var x=$(this),q=$.trim(x.val()),isLab=x.attr('id')==='ralanCariLab',box=isLab?$('#ralanCariLabList'):$('#ralanCariRadList');if(!q){box.empty();return;}var data={};data[isLab?'laboratorium':'radiologi']=q;$.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/'+(isLab?'laboratorium':'radiologi')+'?t='+mlite.token,data,function(html){box.html(html);});});
+$(document).on('click','#ralanCariLabList .pilih_laboratorium,#ralanCariRadList .pilih_radiologi',function(e){e.preventDefault();var x=$(this),m=$('#labRadSoapRalanModal'),list=m.data('labRadDipilih')||[],item={kode:x.data('kd_jenis_prw'),nama:x.data('nm_perawatan'),kat:x.data('kat')};if(!list.some(function(v){return v.kode===item.kode&&v.kat===item.kat;}))list.push(item);m.data('labRadDipilih',list);renderRalanLabRad(m);$('#ralanCariLab,#ralanCariRad').val('');$('#ralanCariLabList,#ralanCariRadList').empty();});
+$(document).on('click','#labRadSoapRalanModal .hapus-ralan-labrad',function(){var m=$('#labRadSoapRalanModal'),list=m.data('labRadDipilih')||[];list.splice(parseInt($(this).data('index'),10),1);m.data('labRadDipilih',list);renderRalanLabRad(m);});
+$(document).on('click','#simpanLabRadSoapRalan',function(){var m=$('#labRadSoapRalanModal'),list=m.data('labRadDipilih')||[],b=$(this),f=$('#form_soap');if(!list.length){bootbox.alert('Pilih minimal satu pemeriksaan.');return;}b.prop('disabled',true);var save=function(i){if(i>=list.length){m.find('#ralanLabRadStatus').html('<div class="alert alert-success">Permintaan berhasil disimpan.</div>');setTimeout(function(){m.modal('hide');},600);b.prop('disabled',false);return;}var x=list[i];$.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/savepermintaan?t='+mlite.token,{no_rawat:m.data('no_rawat'),kat:x.kat,kd_jenis_prw:x.kode,tgl_perawatan:f.find('input:text[name=tgl_perawatan]').val(),jam_rawat:f.find('input:text[name=jam_rawat]').val(),informasi_tambahan:m.find('#ralanLabRadInformasi').val()||'-',diagnosa_klinis:m.find('#ralanLabRadDiagnosa').val()||'-'}).done(function(){save(i+1);}).fail(function(){m.find('#ralanLabRadStatus').html('<div class="alert alert-danger">Permintaan gagal disimpan.</div>');b.prop('disabled',false);});};save(0);});
+
+$(document).on('click', '#form_soap #buka_tindakan_soap', function(event){
+  event.preventDefault();
+  var form = $('#form_soap'), modal = $('#tindakanSoapRalanModal');
+  var noRawat = $.trim(String(form.find('input:text[name=no_rawat]').val() || ''));
+  if (!noRawat) { bootbox.alert('Nomor rawat belum tersedia.'); return false; }
+  modal.find('#ralanTindakanNoRawat').val(noRawat);
+  modal.find('#ralanTindakanTanggal').val(form.find('input:text[name=tgl_perawatan]').val());
+  modal.find('#ralanTindakanJam').val(form.find('input:text[name=jam_rawat]').val());
+  modal.find('#ralanTindakanNamaPasien').val(form.find('input:text[name=nm_pasien]').val() || '');
+  modal.data('tindakanDipilih', []).data('currentProvider', null);
+  renderRalanTindakanDipilih(modal);
+  modal.find('#ralanTindakanLayanan,#ralanTindakanDokter,#ralanTindakanPerawat,#ralanTindakanKdDokter,#ralanTindakanKdNip').val('');
+  modal.find('#ralanTindakanProvider').val('');
+  modal.find('#ralanTindakanLayananList,#ralanTindakanDokterList,#ralanTindakanPerawatList').empty();
+  modal.find('#ralanTindakanProviderFields,#ralanTindakanDokterGroup,#ralanTindakanPerawatGroup').hide();
+  modal.find('#ralanTindakanStatus').empty();
+  $.get(mlite.url+'/'+mlite.admin+'/rawat_jalan/currentprovider?t='+mlite.token, function(data){
+    modal.data('currentProvider', data || {});
+    if (modal.find('#ralanTindakanProvider').val()) modal.find('#ralanTindakanProvider').trigger('change');
+  });
+  modal.modal('show');
+  return false;
+});
+
+$(document).on('keyup', '#ralanTindakanLayanan', function(){
+  var q = $.trim($(this).val()), box = $('#ralanTindakanLayananList');
+  if (!q) { box.empty(); return; }
+  $.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/layanan?t='+mlite.token, {layanan:q}, function(html){ box.html(html); });
+});
+
+$(document).on('click', '#ralanTindakanLayananList .pilih_layanan', function(event){
+  event.preventDefault();
+  var x = $(this), modal = $('#tindakanSoapRalanModal'), list = modal.data('tindakanDipilih') || [];
+  var item = {kode:x.data('kd_jenis_prw'), nama:x.data('nm_perawatan'), biaya:x.data('biaya'), kat:x.data('kat') || 'tindakan'};
+  if (!list.some(function(value){ return value.kode === item.kode; })) list.push(item);
+  modal.data('tindakanDipilih', list);
+  renderRalanTindakanDipilih(modal);
+  modal.find('#ralanTindakanLayanan').val('').focus();
+  modal.find('#ralanTindakanLayananList').empty();
+  modal.find('#ralanTindakanProviderFields').show();
+});
+
+$(document).on('click', '#tindakanSoapRalanModal .hapus-ralan-tindakan', function(){
+  var modal = $('#tindakanSoapRalanModal'), list = modal.data('tindakanDipilih') || [];
+  list.splice(parseInt($(this).data('index'), 10), 1);
+  modal.data('tindakanDipilih', list);
+  renderRalanTindakanDipilih(modal);
+  if (!list.length) modal.find('#ralanTindakanProviderFields').hide();
+});
+
+$(document).on('change', '#ralanTindakanProvider', function(){
+  var modal = $('#tindakanSoapRalanModal'), value = $(this).val(), current = modal.data('currentProvider') || {};
+  modal.find('#ralanTindakanDokterGroup').toggle(value === 'rawat_jl_dr' || value === 'rawat_jl_drpr');
+  modal.find('#ralanTindakanPerawatGroup').toggle(value === 'rawat_jl_pr' || value === 'rawat_jl_drpr');
+  modal.find('#ralanTindakanDokter,#ralanTindakanKdDokter,#ralanTindakanPerawat,#ralanTindakanKdNip').val('').prop('readonly', false);
+  if ((value === 'rawat_jl_dr' || value === 'rawat_jl_drpr') && current.role === 'medis' && current.dokter && current.dokter.kd_dokter) {
+    modal.find('#ralanTindakanDokter').val(current.fullname || current.dokter.nm_dokter).prop('readonly', true);
+    modal.find('#ralanTindakanKdDokter').val(current.dokter.kd_dokter);
+  }
+  if ((value === 'rawat_jl_pr' || value === 'rawat_jl_drpr') && current.role === 'paramedis' && current.petugas && current.petugas.nip) {
+    modal.find('#ralanTindakanPerawat').val(current.fullname || current.petugas.nama).prop('readonly', true);
+    modal.find('#ralanTindakanKdNip').val(current.petugas.nip);
+  }
+});
+
+$(document).on('keyup', '#ralanTindakanDokter', function(){
+  var q = $.trim($(this).val());
+  if (q) $.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/providerlist?t='+mlite.token, {query:q}, function(html){ $('#ralanTindakanDokterList').html(html); });
+});
+$(document).on('click', '#ralanTindakanDokterList li', function(){
+  var p = $(this).text().split(': '), modal = $('#tindakanSoapRalanModal');
+  modal.find('#ralanTindakanDokter').val(p[1] || ''); modal.find('#ralanTindakanKdDokter').val(p[0] || ''); modal.find('#ralanTindakanDokterList').empty();
+});
+$(document).on('keyup', '#ralanTindakanPerawat', function(){
+  var q = $.trim($(this).val());
+  if (q) $.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/providerlist2?t='+mlite.token, {query:q}, function(html){ $('#ralanTindakanPerawatList').html(html); });
+});
+$(document).on('click', '#ralanTindakanPerawatList li', function(){
+  var p = $(this).text().split(': '), modal = $('#tindakanSoapRalanModal');
+  modal.find('#ralanTindakanPerawat').val(p[1] || ''); modal.find('#ralanTindakanKdNip').val(p[0] || ''); modal.find('#ralanTindakanPerawatList').empty();
+});
+
+$(document).on('click', '#tindakanSoapRalanModal #simpanTindakanSoapRalan', function(){
+  var modal = $('#tindakanSoapRalanModal'), list = modal.data('tindakanDipilih') || [], provider = modal.find('#ralanTindakanProvider').val(), button = $(this);
+  if (!list.length || !provider) { bootbox.alert('Pilih tindakan dan provider terlebih dahulu.'); return; }
+  var kdDokter = modal.find('#ralanTindakanKdDokter').val(), kdNip = modal.find('#ralanTindakanKdNip').val();
+  if ((provider === 'rawat_jl_dr' || provider === 'rawat_jl_drpr') && !kdDokter) { bootbox.alert('Pilih dokter terlebih dahulu.'); return; }
+  if ((provider === 'rawat_jl_pr' || provider === 'rawat_jl_drpr') && !kdNip) { bootbox.alert('Pilih perawat terlebih dahulu.'); return; }
+  button.prop('disabled', true);
+  var save = function(index) {
+    if (index >= list.length) {
+      modal.find('#ralanTindakanStatus').html('<div class="alert alert-success">'+list.length+' tindakan berhasil disimpan.</div>');
+      var noRawat = modal.find('#ralanTindakanNoRawat').val();
+      $.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/rincian?t='+mlite.token, {no_rawat:noRawat}, function(html){ $('#rincian').html(html); });
+      setTimeout(function(){ modal.modal('hide'); }, 600); button.prop('disabled', false); return;
+    }
+    var item = list[index];
+    $.post(mlite.url+'/'+mlite.admin+'/rawat_jalan/savedetail?t='+mlite.token, {
+      no_rawat:modal.find('#ralanTindakanNoRawat').val(), kd_jenis_prw:item.kode, provider:provider,
+      kode_provider:kdDokter, kode_provider2:kdNip, tgl_perawatan:modal.find('#ralanTindakanTanggal').val(),
+      jam_rawat:modal.find('#ralanTindakanJam').val(), biaya:item.biaya, kat:item.kat, jml:'1'
+    }).done(function(){ save(index + 1); }).fail(function(){
+      modal.find('#ralanTindakanStatus').html('<div class="alert alert-danger">Gagal menyimpan tindakan ke-'+(index+1)+'.</div>'); button.prop('disabled', false);
+    });
+  };
+  save(0);
+});
 $("#form_kontrol").hide();
 
 // tombol buka form diklik

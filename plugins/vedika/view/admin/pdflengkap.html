@@ -1591,7 +1591,8 @@
               <!-- <td valign="top">{$asesmen_medis_igd.tanggal} {$asesmen_medis_igd.jam}</td> -->
               <td valign="top">{$asesmen_medis_igd.suhu}</td>
               <td valign="top">{$asesmen_medis_igd.td}</td>
-              <td valign="top">{if: $asesmen_medis_igd.nadi <= '119' && $asesmen_medis_igd.no_rawat != '2025/07/09/001085' && $triase_igd.nyeri <= '4'}120{else}{$asesmen_medis_igd.nadi}{/if}</td>
+              <!--<td valign="top">{if: $asesmen_medis_igd.nadi <= '119' && $asesmen_medis_igd.no_rawat != '2025/07/09/001085' && $triase_igd.nyeri <= '4'}120{else}{$asesmen_medis_igd.nadi}{/if}</td>-->
+              <td valign="top">{$asesmen_medis_igd.nadi}</td>
               <td valign="top">{$asesmen_medis_igd.rr}</td>
               <td valign="top">{$asesmen_medis_igd.tb}</td>
               <td valign="top">{$asesmen_medis_igd.bb}</td> 
@@ -1609,7 +1610,7 @@
            </tr>
            <tr>
               <td valign="top">{$triase_igd.macam_kasus}</td>
-              <td valign="top">{$triase_igd.emergency}</td>
+              <td valign="top">True Emergency</td>
               <td valign="top">{if: $asesmen_medis_igd.kesadaran == 'CM'}Compos Mentis{else}{$asesmen_medis_igd.kesadaran}{/if}</td>
               <td valign="top">{if: $triase_igd.cara_masuk == 'Jalan'}Jalan Kaki{else}{$triase_igd.cara_masuk}{/if}</td>
               <td valign="top" colspan="2">{if: $triase_igd.alat_transportasi == 'Sendiri'}Kendaraan Pribadi

@@ -58,15 +58,15 @@ register_shutdown_function(function () use (
 
     $lastError = error_get_last();
     $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
-    if (!$lastError || !in_array($lastError['type'], $fatalTypes, true)) {
-        return;
-    }
 
     $fatalMemoryReserve = null;
     try {
         $pdo = $core->db()->pdo();
         $processingMessage = 'Diproses oleh ' . substr($workerId, 0, 120);
-        $fatalMessage = substr('Worker berhenti: ' . $lastError['message'], 0, 65000);
+        $isFatal = $lastError && in_array($lastError['type'], $fatalTypes, true);
+        $fatalMessage = $isFatal
+            ? substr('Worker berhenti: ' . $lastError['message'], 0, 65000)
+            : 'Worker dihentikan saat job aktif; job dijadwalkan ulang';
         $recover = $pdo->prepare(
             "UPDATE mlite_vedika_grouping_queue
              SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'queued' END,
@@ -74,7 +74,7 @@ register_shutdown_function(function () use (
                  started_at = CASE WHEN attempts >= 3 THEN started_at ELSE NULL END,
                  finished_at = CASE WHEN attempts >= 3 THEN NOW() ELSE NULL END,
                  heartbeat_at = NOW()
-             WHERE status = 'processing' AND message = ?"
+             WHERE status = 'processing' AND message LIKE CONCAT(?, '%')"
         );
         $recover->execute([$fatalMessage, $processingMessage]);
 
@@ -91,6 +91,20 @@ register_shutdown_function(function () use (
             . $shutdownError->getMessage() . PHP_EOL);
     }
 });
+
+// Pastikan TERM/QUIT dari Supervisor melewati shutdown handler sehingga job
+// aktif dikembalikan ke antrean, bukan tertinggal sebagai processing.
+if (function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
+    pcntl_async_signals(true);
+    pcntl_signal(SIGTERM, function () {
+        exit(0);
+    });
+    if (defined('SIGQUIT')) {
+        pcntl_signal(SIGQUIT, function () {
+            exit(0);
+        });
+    }
+}
 
 do {
     try {

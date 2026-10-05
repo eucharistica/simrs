@@ -65,6 +65,15 @@
 <script>
 (function(){
   var root=$('#vedikaProcedureEditor'), timer=null, substituteCode='';
+  function notifyCodingUpdated(response){
+    if(!response || !response.ok) return;
+    // Kirim konteks episode secara eksplisit agar semua halaman induk
+    // memperbarui row yang tepat tanpa menunggu modal ditutup.
+    $(document).trigger('vedika:coding-updated',[{
+      noRawat:'{?=convertNorawat($no_rawat)?}',
+      status:'{$status_lanjut}'
+    },response]);
+  }
   function esc(v){return $('<div>').text(v==null?'':v).html();}
   function reload(){
     $.ajax({url:'{$reload_url}',method:'GET',cache:false}).done(function(html){
@@ -108,6 +117,7 @@
       : {no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$('#vpCode').val(),prioritas:$('#vpPriority').val(),volume:$('#vpVolume').val()};
     $.post(mlite.url+'/'+mlite.admin+'/vedika/'+endpoint+'?t='+mlite.token,payload,function(res){
       if(!res.ok){bootbox.alert(res.message);return;}
+      notifyCodingUpdated(res);
       reload();
     },'json');
   });
@@ -125,11 +135,12 @@
     var code=$(this).data('code');
     $.post(mlite.url+'/'+mlite.admin+'/vedika/jadikanprosedurutama?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:code},function(res){
       if(!res.ok){bootbox.alert(res.message);return;}
+      notifyCodingUpdated(res);
       reload();
     },'json');
   });
   root.on('change','.vp-row-volume',function(){
-    $.post(mlite.url+'/'+mlite.admin+'/vedika/simpanvolumeprosedur?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$(this).data('code'),volume:this.value},function(res){if(!res.ok)bootbox.alert(res.message);},'json');
+    $.post(mlite.url+'/'+mlite.admin+'/vedika/simpanvolumeprosedur?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:$(this).data('code'),volume:this.value},function(res){if(!res.ok){bootbox.alert(res.message);return;}notifyCodingUpdated(res);},'json');
   });
   root.on('click','.vp-delete',function(){
     var b=$(this);
@@ -137,7 +148,8 @@
       if(!ok)return;
       $.post(mlite.url+'/'+mlite.admin+'/vedika/hapusprosedur?t='+mlite.token,{no_rawat:'{$no_rawat}',status:'{$status_lanjut}',kode:b.data('code'),prioritas:b.data('priority')},function(res){
         if(!res.ok){bootbox.alert(res.message);return;}
-        reload();
+        notifyCodingUpdated(res);
+      reload();
       },'json');
     });
   });
