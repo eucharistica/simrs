@@ -9,6 +9,42 @@ class Site extends SiteModule
 
     protected $mlite;
     protected $assign;
+    private $vedikaLogPdo;
+
+    private function _getVedikaLogPdo()
+    {
+        if ($this->vedikaLogPdo instanceof \PDO) return $this->vedikaLogPdo;
+        if (!defined('DBLOGNAME') || trim((string) DBLOGNAME) === '') {
+            throw new \RuntimeException('DBLOGNAME belum dikonfigurasi.');
+        }
+        $this->vedikaLogPdo = new \PDO(
+            'mysql:host=' . DBHOST . ';port=' . DBPORT . ';dbname=' . DBLOGNAME . ';charset=utf8mb4',
+            DBUSER,
+            DBPASS,
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION, \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC, \PDO::ATTR_EMULATE_PREPARES => true]
+        );
+        return $this->vedikaLogPdo;
+    }
+
+    private function _saveVedikaFeedback(array $data)
+    {
+        return $this->_getVedikaLogPdo()->prepare(
+            'INSERT INTO mlite_vedika_feedback_log (nosep, tanggal, catatan, username) VALUES (?, ?, ?, ?)'
+        )->execute([$data['nosep'] ?? '', $data['tanggal'] ?? date('Y-m-d'), $data['catatan'] ?? '', $data['username'] ?? '']);
+    }
+
+    private function _getVedikaFeedbackForExport($nosep, $bpjs)
+    {
+        $stmt = $this->_getVedikaLogPdo()->prepare('SELECT * FROM mlite_vedika_feedback_log WHERE nosep = ? ORDER BY id DESC');
+        $stmt->execute([$nosep]);
+        foreach ($stmt->fetchAll() as $feedback) {
+            $user = $bpjs
+                ? $this->db('mlite_users_vedika')->where('username', $feedback['username'])->oneArray()
+                : $this->db('mlite_users')->where('username', $feedback['username'])->oneArray();
+            if ($user) return $feedback;
+        }
+        return ['catatan' => ''];
+    }
 
     public function init()
     {
@@ -89,7 +125,7 @@ class Site extends SiteModule
             'status' => 'Perbaiki'
           ]);
           if($simpan_status) {
-            $this->db('mlite_vedika_feedback')->save([
+            $this->_saveVedikaFeedback([
               'id' => NULL,
               'nosep' => $_POST['nosep'],
               'tanggal' => date('Y-m-d'),
@@ -197,7 +233,7 @@ class Site extends SiteModule
             'status' => 'Perbaiki'
           ]);
           if($simpan_status) {
-            $this->db('mlite_vedika_feedback')->save([
+            $this->_saveVedikaFeedback([
               'id' => NULL,
               'nosep' => $_POST['nosep'],
               'tanggal' => date('Y-m-d'),
@@ -310,7 +346,7 @@ class Site extends SiteModule
             'status' => 'Perbaiki'
           ]);
           if($simpan_status) {
-            $this->db('mlite_vedika_feedback')->save([
+            $this->_saveVedikaFeedback([
               'id' => NULL,
               'nosep' => $_POST['nosep'],
               'tanggal' => date('Y-m-d'),
@@ -437,14 +473,10 @@ class Site extends SiteModule
         $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
         $row['kd_prosedur'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
 
-        $get_feedback_bpjs = $this->db()->pdo()->prepare("SELECT * FROM mlite_vedika_feedback WHERE nosep = '{$row['nosep']}' AND username IN (SELECT username FROM mlite_users_vedika) ORDER BY id DESC LIMIT 1");
-        $get_feedback_bpjs->execute();
-        $get_feedback_bpjs = $get_feedback_bpjs->fetch();
+        $get_feedback_bpjs = $this->_getVedikaFeedbackForExport($row['nosep'], true);
         $row['konfirmasi_bpjs'] = $get_feedback_bpjs['catatan'];
 
-        $get_feedback_rs = $this->db()->pdo()->prepare("SELECT * FROM mlite_vedika_feedback WHERE nosep = '{$row['nosep']}' AND username IN (SELECT username FROM mlite_users) ORDER BY id DESC LIMIT 1");
-        $get_feedback_rs->execute();
-        $get_feedback_rs = $get_feedback_rs->fetch();
+        $get_feedback_rs = $this->_getVedikaFeedbackForExport($row['nosep'], false);
         $row['konfirmasi_rs'] = $get_feedback_rs['catatan'];
 
         $display[] = $row;
@@ -1108,7 +1140,9 @@ class Site extends SiteModule
     {
       $set_status = $this->db('bridging_sep')->where('no_sep', $id)->oneArray();
       $vedika = $this->db('mlite_vedika')->where('nosep', $id)->asc('id')->toArray();
-      $rows_vedika_feedback = $this->db('mlite_vedika_feedback')->where('nosep', $id)->asc('id')->toArray();
+      $rows_vedika_feedback = $this->_getVedikaLogPdo()->prepare('SELECT * FROM mlite_vedika_feedback_log WHERE nosep = ? ORDER BY id');
+      $rows_vedika_feedback->execute([$id]);
+      $rows_vedika_feedback = $rows_vedika_feedback->fetchAll();
       foreach($rows_vedika_feedback as $row) {
         $users_vedika = $this->db('mlite_users_vedika')->where('username', $row['username'])->oneArray();
         $users_login = $this->db('mlite_users')->where('username', $row['username'])->oneArray();
@@ -1133,7 +1167,9 @@ class Site extends SiteModule
 
   	public function getDelFeed($id,$user)
     {
-  		$delete = $this->db('mlite_vedika_feedback')->where('nosep', $id)->where('username',$user)->delete();
+  		$delete = $this->_getVedikaLogPdo()->prepare('DELETE FROM mlite_vedika_feedback_log WHERE nosep = ? AND username = ?');
+      $delete->execute([$id, $user]);
+      $delete = $delete->rowCount();
    		if($delete)
           header('Location: '.$_SERVER['REQUEST_URI']);
     }

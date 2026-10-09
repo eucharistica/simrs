@@ -67,6 +67,7 @@
                             <input type="text" name="s" minlength="3" class="form-control" placeholder="Search" required>
                             <input type="hidden" name="start_date" value="{if: isset($_GET['start_date'])}{?=$_GET['start_date']?}{else}{?=date('Y-m-d')?}{/if}">
                             <input type="hidden" name="end_date" value="{if: isset($_GET['end_date'])}{?=$_GET['end_date']?}{else}{?=date('Y-m-d')?}{/if}">
+                            <input type="hidden" name="poli" value="{if: isset($_GET['poli'])}{?=$_GET['poli']?}{else}{/if}">
                             <input type="hidden" name="t" value="{?=$_SESSION['token']?}">
                             <span class="input-group-btn">
                                 <button class="btn btn-default" type="submit"><span class="glyphicon glyphicon-search"></span></button>
@@ -94,32 +95,28 @@
                         <td>{$value.nomor}</td>
                         <td>
                           {if: $value.no_sep == ''}
-                            <a href="{$value.formSepURL}" class="btn btn-info btn-xs" data-toggle="modal" data-target="#moduleModal">
-                              <i class="fa fa-download"></i> Ambil SEP dari Vclaim
+                            {if: $value.canBrowseSep}
+                            <a href="{$value.formSepURL}" class="btn btn-info btn-xs kronis-sep" data-toggle="modal" data-target="#moduleModal">
+                              <i class="fa fa-search"></i> Pilih SEP Sebelumnya
                             </a>
+                            {else}
+                              <span class="label label-warning"><i class="fa fa-info-circle"></i> SEP BPJ belum tersedia</span>
+                            {/if}
                           {else}
                             <button class="btn btn-info btn-xs">
                               <i class="fa fa-file-o"></i> {$value.no_sep}
                             </button>
+                            {if: $value.canBrowseSep}<a href="{$value.formSepURL}" class="btn btn-default btn-xs kronis-sep" data-toggle="modal" data-target="#moduleModal"><i class="fa fa-exchange"></i> Ganti SEP</a>{/if}
                           {/if}
                           <br/>
                           <a href="{$value.pdfURL}" target="_blank" class="btn btn-primary btn-xs">
-      											<i class="fa fa-print"></i> Lihat Data Klaim
+												<i class="fa fa-print"></i> Lihat PDF Obat Kronis
       										</a><br/>
+                          <a href="{$value.labHistoryURL}" class="btn btn-info btn-xs kronis-lab" data-toggle="modal" data-target="#moduleModal"><i class="fa fa-flask"></i> Ambil Riwayat Lab</a><br/>
                           <a href="{$value.formVclaimURL}" class="btn btn-info btn-xs" data-toggle="modal" data-target="#moduleModal">
                             <i class="fa fa-send"></i> Vclaim
                           </a>                          
-                          {if: $value.no_sep == ''}
-                            <button class="btn btn-warning btn-xs">
-        											<i class="fa fa-check"></i> Status
-        										</button><br>
-                          {else}
-                            <a href="{$value.setstatusURL}" class="btn btn-success btn-xs" data-toggle="modal" data-target="#statusModal">
-        											<i class="fa fa-check"></i> Status
-        										</a>
-                            {loop: $value.status_pengajuan as $data}
-                            <span class="badge badge-{if: $data.status == 'Setuju'}success{elseif: $data.status == 'Perbaiki'}error{else}warning{/if}">{$data.status}</span>
-                            {/loop}
+                          
                             <!-- <a href="#" class="btn btn-danger btn-xs bridging_inacbgs" data-no_rawat="{?=convertNorawat($value.no_rawat)?}">
                               <i class="fa fa-refresh"></i> E-klaim
                             </a>  -->
@@ -127,7 +124,6 @@
                             <a href="#" class="btn btn-danger btn-xs hapus_vedika" data-no_sep="{$value.no_sep}">
                               <i class="fa fa-trash"></i> Hapus SEP
                             </a> -->
-                          {/if}
                         </td>
       									<td> 
                           <table>
@@ -260,6 +256,16 @@
   </div>
 </div>
 <script type="text/javascript">
+  $('#moduleModal').on('show.bs.modal', function (event) {
+    var trigger = $(event.relatedTarget), url = trigger.attr('href');
+    if (!url) return;
+    $('#moduleModal .modal-content').html('<div class="modal-body text-center"><i class="fa fa-spinner fa-spin"></i> Memuat...</div>').load(url);
+  });
+  $('#statusModal').on('show.bs.modal', function (event) {
+    var trigger = $(event.relatedTarget), url = trigger.attr('href');
+    if (!url) return;
+    $('#statusModal .modal-content').html('<div class="modal-body text-center"><i class="fa fa-spinner fa-spin"></i> Memuat...</div>').load(url);
+  });
   var no_rawat = $(this).attr("data-no_rawat");
   $('input:text[name=no_rawat]').val(no_rawat);
 </script>

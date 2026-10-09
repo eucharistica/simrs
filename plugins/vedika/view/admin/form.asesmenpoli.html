@@ -1,165 +1,89 @@
 <div class="modal-header">
-    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-    <h4 class="modal-title">Asesmen Medis IGD</h4>
+  <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <h4 class="modal-title"><i class="fa fa-stethoscope"></i> SOAP Poli</h4>
 </div>
 <div class="modal-body">
-  <article class="row" id="asesmen">
-      <div class="col-md-4">
-        <div class="form-group">
-            <label>Nomor Rawat</label>
-            <input type="text" name="no_rawat_asesmen" class="form-control" placeholder="Nomor Rawat" required value="{$reg_periksa.no_rawat}" readonly />
+  <form id="form_soap_poli">
+    <input type="hidden" name="no_rawat" value="{$reg_periksa.no_rawat}">
+    <div class="panel panel-default">
+      <div class="panel-heading"><strong>Identitas Kunjungan</strong></div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-md-4"><label>No. Rawat</label><input type="text" class="form-control" value="{$reg_periksa.no_rawat}" readonly></div>
+          <div class="col-md-4"><label>No. RM</label><input type="text" class="form-control" value="{$reg_periksa.no_rkm_medis}" readonly></div>
+          <div class="col-md-4"><label>Nama Pasien</label><input type="text" class="form-control" value="{$reg_periksa.nm_pasien}" readonly></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div class="col-md-3"><label>Tanggal Pemeriksaan</label><input type="text" name="tgl_perawatan" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.tgl_perawatan)?}{else}{?=date('Y-m-d')?}{/if}" required></div>
+          <div class="col-md-3"><label>Jam Pemeriksaan</label><input type="text" name="jam_rawat" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.jam_rawat)?}{else}{?=date('H:i:s')?}{/if}" required></div>
+          <div class="col-md-3"><label>Dokter Registrasi</label><input type="text" class="form-control" value="{$reg_periksa.nm_dokter}" readonly></div>
+          <div class="col-md-3"><label>Alergi</label><input type="text" name="alergi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.alergi)?}{/if}"></div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div class="form-group">
-            <label>Nama Pasien</label>
-            <input type="text" name="nama_pasien" class="form-control" placeholder="Nama Pasien" value="{$reg_periksa.nm_pasien}" readonly />
+    </div>
+    <div class="panel panel-default">
+      <div class="panel-heading"><strong>Pemeriksaan</strong></div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-sm-2"><label>Suhu (C)</label><input type="text" name="suhu_tubuh" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.suhu_tubuh)?}{/if}"></div>
+          <div class="col-sm-2"><label>Tensi (mmHg)</label><input type="text" name="tensi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.tensi)?}{/if}"></div>
+          <div class="col-sm-2"><label>Nadi (/mnt)</label><input type="text" name="nadi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.nadi)?}{/if}"></div>
+          <div class="col-sm-2"><label>RR (/mnt)</label><input type="text" name="respirasi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.respirasi)?}{/if}"></div>
+          <div class="col-sm-2"><label>Tinggi (cm)</label><input type="text" name="tinggi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.tinggi)?}{/if}"></div>
+          <div class="col-sm-2"><label>Berat (kg)</label><input type="text" name="berat" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.berat)?}{/if}"></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div class="col-sm-3"><label>Kesadaran</label><select name="kesadaran" class="form-control">
+            <option value="Compos Mentis 15-14"{if: $asesmen && $asesmen.kesadaran == 'Compos Mentis 15-14'} selected{/if}>Compos Mentis 15-14</option>
+            <option value="Apatis 13-12"{if: $asesmen && $asesmen.kesadaran == 'Apatis 13-12'} selected{/if}>Apatis 13-12</option>
+            <option value="Delirium 11-10"{if: $asesmen && $asesmen.kesadaran == 'Delirium 11-10'} selected{/if}>Delirium 11-10</option>
+            <option value="Somnolen 9-7"{if: $asesmen && $asesmen.kesadaran == 'Somnolen 9-7'} selected{/if}>Somnolen 9-7</option>
+            <option value="Sopor 6-4"{if: $asesmen && $asesmen.kesadaran == 'Sopor 6-4'} selected{/if}>Sopor 6-4</option>
+            <option value="Coma 3"{if: $asesmen && $asesmen.kesadaran == 'Coma 3'} selected{/if}>Coma 3</option>
+          </select></div>
+          <div class="col-sm-3"><label>GCS (E,V,M)</label><input type="text" name="gcs" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.gcs)?}{/if}"></div>
+          <div class="col-sm-3"><label>SpO2 (%)</label><input type="text" name="spo" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.spo)?}{/if}"></div>
+          <div class="col-sm-3"><label>Imunisasi ke-</label><select name="imun_ke" class="form-control">
+            <option value="-"{if: !$asesmen || $asesmen.imun_ke == '-'} selected{/if}>-</option>
+            <option value="1"{if: $asesmen && $asesmen.imun_ke == '1'} selected{/if}>1</option><option value="2"{if: $asesmen && $asesmen.imun_ke == '2'} selected{/if}>2</option><option value="3"{if: $asesmen && $asesmen.imun_ke == '3'} selected{/if}>3</option><option value="4"{if: $asesmen && $asesmen.imun_ke == '4'} selected{/if}>4</option><option value="5"{if: $asesmen && $asesmen.imun_ke == '5'} selected{/if}>5</option><option value="6"{if: $asesmen && $asesmen.imun_ke == '6'} selected{/if}>6</option><option value="7"{if: $asesmen && $asesmen.imun_ke == '7'} selected{/if}>7</option><option value="8"{if: $asesmen && $asesmen.imun_ke == '8'} selected{/if}>8</option><option value="10"{if: $asesmen && $asesmen.imun_ke == '10'} selected{/if}>10</option><option value="11"{if: $asesmen && $asesmen.imun_ke == '11'} selected{/if}>11</option><option value="12"{if: $asesmen && $asesmen.imun_ke == '12'} selected{/if}>12</option><option value="13"{if: $asesmen && $asesmen.imun_ke == '13'} selected{/if}>13</option>
+          </select></div>
         </div>
       </div>
-      
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>Nyeri</label>
-            <input type="text" name="nyeri" class="form-control" required value="{$triase.nyeri}" />
-        </div>
+    </div>
+    <div class="panel panel-default">
+      <div class="panel-heading"><strong>SOAP</strong></div>
+      <div class="panel-body">
+        <div class="row"><div class="col-md-6"><label>Subyektif / Keluhan</label><textarea name="keluhan" class="form-control" rows="4">{if: $asesmen}{?=isset_or($asesmen.keluhan)?}{/if}</textarea></div><div class="col-md-6"><label>Obyektif / Pemeriksaan</label><textarea name="pemeriksaan" class="form-control" rows="4">{if: $asesmen}{?=isset_or($asesmen.pemeriksaan)?}{/if}</textarea></div></div>
+        <div class="row" style="margin-top:10px;"><div class="col-md-6"><label>Assessment / Penilaian</label><textarea name="penilaian" class="form-control" rows="4">{if: $asesmen}{?=isset_or($asesmen.penilaian)?}{/if}</textarea></div><div class="col-md-6"><label>Plan / Rencana Tindak Lanjut</label><textarea name="rtl" class="form-control" rows="4">{if: $asesmen}{?=isset_or($asesmen.rtl)?}{/if}</textarea></div></div>
+        <div class="row" style="margin-top:10px;"><div class="col-md-4"><label>Riwayat Penyakit Dahulu</label><textarea name="rpd" class="form-control" rows="3">{if: $asesmen}{?=isset_or($asesmen.rpd)?}{/if}</textarea></div><div class="col-md-4"><label>Riwayat Penyakit Keluarga</label><textarea name="rpk" class="form-control" rows="3">{if: $asesmen}{?=isset_or($asesmen.rpk)?}{/if}</textarea></div><div class="col-md-4"><label>Riwayat Penggunaan Obat</label><textarea name="rpo" class="form-control" rows="3">{if: $asesmen}{?=isset_or($asesmen.rpo)?}{/if}</textarea></div></div>
+        <div class="row" style="margin-top:10px;"><div class="col-md-6"><label>Operasi</label><input type="text" name="operasi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.operasi)?}{/if}"></div><div class="col-md-6"><label>Instruksi</label><textarea name="instruksi" class="form-control" rows="2">{if: $asesmen}{?=isset_or($asesmen.instruksi)?}{/if}</textarea></div></div>
       </div>
-      
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>Suhu</label>
-            <input name="suhu" id="suhu" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.suhu)?}{else}{/if}"/>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>Tensi</label>
-            <input name="td" id="td" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.td)?}{else}{/if}"/>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>Nadi</label>
-            <input name="nadi" id="nadi" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.nadi)?}{else}{/if}"/>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>RR</label>
-            <input name="rr" id="rr" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.rr)?}{else}{/if}"/>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>SPO</label>
-            <input name="spo" id="spo" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.spo)?}{else}{/if}"/>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-            <label>GCS</label>
-            <input name="gcs" id="gcs" class="form-control" value="{if: $asesmen}{?=isset_or($asesmen.gcs)?}{else}{/if}"/>
-        </div>
-      </div>
-      
-      <div class="col-md-12">
-        <div class="form-group">
-            <label>Riwayat Penyakit Sekarang</label>
-            <textarea name="rps" id="rps" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.rps)?}{else}{/if}</textarea>
-        </div>
-      </div>
-      <div class="col-md-12">
-        <div class="form-group">
-            <label>Pemeriksaan Fisik</label>
-            <textarea name="ket_fisik" id="ket_fisik" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.ket_fisik)?}{else}{/if}</textarea>
-        </div>
-      </div>
-      <div class="col-md-12">
-        <div class="form-group">
-            <label>Diagnosis</label>
-            <textarea name="diagnosis" id="diagnosis" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.diagnosis)?}{else}{?=isset_or($diagnosa.nm_penyakit)?}{/if}</textarea>
-        </div>
-      </div>
-      <div class="col-md-12">
-        <div class="form-group">
-            <label>Tatalaksana</label>
-            <textarea name="tata" id="tata" class="form-control" cols="3">{if: $asesmen}{?=isset_or($asesmen.tata)?}{else}{/if}</textarea>
-        </div>
-      </div>
-      <div class="col-md-12">
-      {if: $asesmen}
-      <button type="button" class="btn btn-success" id="simpan_asesmen">Simpan</button>
-      {else}
-      <button type="button" class="btn btn-success disabled" id="asesmen_baru">Simpan</button>
-      {/if}
-      </div>
-  </article>
-
+    </div>
+    <div id="soap_poli_status"></div>
+    <button type="submit" class="btn btn-primary" id="simpan_soap_poli"><i class="fa fa-save"></i> Simpan SOAP Poli</button>
+  </form>
 </div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-primary" data-dismiss="modal">Tutup</button>
-</div>
+<div class="modal-footer"><button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button></div>
 <script type="text/javascript">
-  $('select').selectator();
-</script>
-<script type="text/javascript">
-$(document).off("click.asesmen", "#simpan_asesmen").on("click.asesmen", "#simpan_asesmen", function(event){
+$(document).off('submit.soapPoli', '#form_soap_poli').on('submit.soapPoli', '#form_soap_poli', function(event){
   event.preventDefault();
-
-  var baseURL = mlite.url + '/' + mlite.admin;
-
-  var no_rawat = $('input[name=no_rawat_asesmen]').val();
-  var rps = $('textarea[name=rps]').val();
-  var ket_fisik = $('textarea[name=ket_fisik]').val();
-  var diagnosis = $('textarea[name=diagnosis]').val();
-  var tata = $('textarea[name=tata]').val();
-  var suhu = $('input[name=suhu]').val();
-  var td = $('input[name=td]').val();
-  var nadi = $('input[name=nadi]').val();
-  var rr = $('input[name=rr]').val();
-  var spo = $('input[name=spo]').val();
-  var gcs = $('input[name=gcs]').val();
-  var nyeri = $('input[name=nyeri]').val();
-
-  var url = baseURL + '/vedika/saveasesmenigd?t=' + mlite.token;
-
-  $.post(url, {
-    no_rawat: no_rawat,
-    rps: rps,
-    ket_fisik: ket_fisik,
-    diagnosis: diagnosis,
-    tata: tata,
-    suhu: suhu,
-    td: td,
-    nadi: nadi,
-    rr: rr,
-    spo: spo,
-    gcs: gcs,
-    nyeri: nyeri
-  })
-    .done(function(data) {
-    
-      $('#statusModal').one('hidden.bs.modal', function () {
-    
-        showToast('Data asesmen medis nomor rawat ' + no_rawat + ' telah disimpan!!');
-    
-        setTimeout(function() {
-          window.location.reload();
-        }, 1800);
-    
-      });
-    
-      $('#statusModal').modal('hide');
-    
+  var $form = $(this), $button = $('#simpan_soap_poli'), $status = $('#soap_poli_status');
+  $button.prop('disabled', true);
+  $.post(mlite.url + '/' + mlite.admin + '/vedika/saveasesmenpoli?t=' + encodeURIComponent(mlite.token), $form.serialize(), null, 'json')
+    .done(function(response){
+      if (response && response.ok) {
+        $status.html('<div class="alert alert-success">' + response.message + '</div>');
+        setTimeout(function(){ $('#statusModal').modal('hide'); window.location.reload(); }, 700);
+      } else {
+        $status.html('<div class="alert alert-danger">' + ((response && response.message) || 'SOAP Poli gagal disimpan.') + '</div>');
+        $button.prop('disabled', false);
+      }
     })
-    .fail(function() {
-      showToast('Gagal menyimpan data asesmen medis!', 'error');
+    .fail(function(xhr){
+      var message = 'SOAP Poli gagal disimpan.';
+      if (xhr.responseJSON && xhr.responseJSON.message) message = xhr.responseJSON.message;
+      $status.html('<div class="alert alert-danger">' + message + '</div>');
+      $button.prop('disabled', false);
     });
-});
-
-
-$(document).off("click.asesmenBaru", "#asesmen_baru").on("click.asesmenBaru", "#asesmen_baru", function(event){
-  event.preventDefault();
-
-  alert('Input asesmen medis baru hanya boleh dari aplikasi SIMRS');
 });
 </script>

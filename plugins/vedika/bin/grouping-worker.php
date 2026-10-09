@@ -50,6 +50,7 @@ register_shutdown_function(function () use (
     &$activeQueueCall,
     &$fatalMemoryReserve,
     $core,
+    $vedika,
     $workerId
 ) {
     if (!$activeQueueCall) {
@@ -61,14 +62,15 @@ register_shutdown_function(function () use (
 
     $fatalMemoryReserve = null;
     try {
-        $pdo = $core->db()->pdo();
+        $pdoLog = $vedika->getVedikaLogPdo();
+        $pdoMain = $core->db()->pdo();
         $processingMessage = 'Diproses oleh ' . substr($workerId, 0, 120);
         $isFatal = $lastError && in_array($lastError['type'], $fatalTypes, true);
         $fatalMessage = $isFatal
             ? substr('Worker berhenti: ' . $lastError['message'], 0, 65000)
             : 'Worker dihentikan saat job aktif; job dijadwalkan ulang';
-        $recover = $pdo->prepare(
-            "UPDATE mlite_vedika_grouping_queue
+        $recover = $pdoLog->prepare(
+            "UPDATE mlite_vedika_grouping_queue_log
              SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'queued' END,
                  last_step = 'worker', message = ?,
                  started_at = CASE WHEN attempts >= 3 THEN started_at ELSE NULL END,
@@ -78,9 +80,9 @@ register_shutdown_function(function () use (
         );
         $recover->execute([$fatalMessage, $processingMessage]);
 
-        $rollback = $pdo->prepare(
+        $rollback = $pdoMain->prepare(
             "DELETE v FROM mlite_vedika v
-             INNER JOIN mlite_vedika_grouping_queue q
+             INNER JOIN `" . DBLOGNAME . "`.mlite_vedika_grouping_queue_log q
                 ON q.no_rawat = v.no_rawat AND q.nosep = v.nosep
              WHERE q.status = 'failed' AND q.message = ?
                AND v.status = q.target_status"

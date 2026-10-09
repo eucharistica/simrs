@@ -92,6 +92,7 @@ register_shutdown_function(function () use (
     &$activeQueueCall,
     &$fatalMemoryReserve,
     $core,
+    $vedika,
     $workerId
 ) {
     if (!$activeQueueCall) {
@@ -108,10 +109,10 @@ register_shutdown_function(function () use (
     $fatalMemoryReserve = null;
 
     try {
-        $pdo = $core->db()->pdo();
+        $pdo = $vedika->getVedikaLogPdo();
         $processingMessage = 'Diproses oleh ' . substr($workerId, 0, 120);
         $message = 'Worker berhenti karena fatal error: ' . $lastError['message'];
-        $recover = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $recover = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
             SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'queued' END,
                 message = ?,
                 started_at = CASE WHEN attempts >= 3 THEN started_at ELSE NULL END,

@@ -24,6 +24,7 @@ class Admin extends AdminModule
   private $activeGroupingWorkerId = null;
   private $groupingJobDeadline = null;
   private $lastGroupingRequestMethod = null;
+  private $vedikaLogPdo = null;
 
   public function init()
   {
@@ -31,6 +32,69 @@ class Admin extends AdminModule
     $this->secretkey = $this->settings->get('settings.BpjsSecretKey');
     $this->user_key = $this->settings->get('settings.BpjsUserKey');
     $this->api_url = $this->settings->get('settings.BpjsApiUrl');
+  }
+
+  /**
+   * Koneksi khusus untuk audit/queue Vedika.
+   * Koneksi utama tetap digunakan untuk tabel klinis dan status klaim.
+   */
+  private function _getVedikaLogPdo()
+  {
+    if ($this->vedikaLogPdo instanceof \PDO) {
+      return $this->vedikaLogPdo;
+    }
+
+    if (!defined('DBLOGNAME') || trim((string) DBLOGNAME) === '') {
+      throw new \RuntimeException('DBLOGNAME belum dikonfigurasi.');
+    }
+
+    $this->vedikaLogPdo = new \PDO(
+      'mysql:host=' . DBHOST . ';port=' . DBPORT . ';dbname=' . DBLOGNAME . ';charset=utf8mb4',
+      DBUSER,
+      DBPASS,
+      [
+        \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+        \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+        // MariaDB pada server produksi kadang mengembalikan 1615 setelah
+        // metadata tabel/view log berubah. Emulated prepare menghindari
+        // prepared statement server-side yang stale; parameter tetap dibind.
+        \PDO::ATTR_EMULATE_PREPARES => true
+      ]
+    );
+
+    return $this->vedikaLogPdo;
+  }
+
+  public function getVedikaLogPdo()
+  {
+    return $this->_getVedikaLogPdo();
+  }
+
+  private function _saveVedikaFeedback(array $data)
+  {
+    $fields = ['nosep', 'tanggal', 'catatan', 'username'];
+    $values = [];
+    foreach ($fields as $field) {
+      $values[$field] = array_key_exists($field, $data) ? $data[$field] : null;
+    }
+    $stmt = $this->_getVedikaLogPdo()->prepare(
+      'INSERT INTO mlite_vedika_feedback_log (nosep, tanggal, catatan, username) VALUES (?, ?, ?, ?)'
+    );
+    return $stmt->execute(array_values($values));
+  }
+
+  private function _getVedikaFeedback($nosep, $username = null, $notUsername = false)
+  {
+    $sql = 'SELECT * FROM mlite_vedika_feedback_log WHERE nosep = ?';
+    $params = [$nosep];
+    if ($username !== null) {
+      $sql .= $notUsername ? ' AND username <> ?' : ' AND username = ?';
+      $params[] = $username;
+    }
+    $sql .= ' ORDER BY id DESC LIMIT 1';
+    $stmt = $this->_getVedikaLogPdo()->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch() ?: [];
   }
 
   public function navigation() 
@@ -224,7 +288,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -232,12 +296,16 @@ class Admin extends AdminModule
           'username' => $this->core->getUserInfo('username', null, true)
         ]);
 
-        $this->_queueGroupingAfterStatusSaved(
-          $_POST['no_rawat'],
-          $_POST['nosep'],
-          $jenis_klaim,
-          $_POST['status']
-        );
+        if (!empty($_POST['bypass_grouping'])) {
+          $this->_markVedikaDcSent($_POST['nosep']);
+        } else {
+          $this->_queueGroupingAfterStatusSaved(
+            $_POST['no_rawat'],
+            $_POST['nosep'],
+            $jenis_klaim,
+            $_POST['status']
+          );
+        }
 
       }
     }
@@ -309,6 +377,8 @@ class Admin extends AdminModule
         AND rp.tgl_registrasi BETWEEN '$start_date' AND '$end_date'
         AND rp.status_lanjut = 'Ralan'
         AND rp.stts != 'Batal'
+        AND sep_ralan.no_sep IS NOT NULL
+        AND sep_ralan.no_sep <> ''
         AND mv.no_rawat IS NULL
         AND bs_ranap.nomr IS NULL
         GROUP BY rp.no_rawat
@@ -361,7 +431,6 @@ class Admin extends AdminModule
         -- belum pernah masuk vedika
         LEFT JOIN mlite_vedika mv
           ON mv.no_rawat = rp.no_rawat
-
         -- Sembunyikan Ralan bila menjadi Ranap dalam episode yang sama,
         -- atau SEP Ranap pasien terbit pada tanggal SEP Ralan yang sama.
         LEFT JOIN bridging_sep bs_ranap
@@ -383,6 +452,8 @@ class Admin extends AdminModule
         AND rp.tgl_registrasi BETWEEN '$start_date' AND '$end_date'
         AND rp.status_lanjut = 'Ralan'
         AND rp.stts != 'Batal'
+        AND sep_ralan.no_sep IS NOT NULL
+        AND sep_ralan.no_sep <> ''
         AND mv.no_rawat IS NULL
         AND bs_ranap.nomr IS NULL
       GROUP BY rp.no_rawat
@@ -511,7 +582,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -819,7 +890,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -827,12 +898,16 @@ class Admin extends AdminModule
           'username' => $this->core->getUserInfo('username', null, true)
         ]);
 
-        $this->_queueGroupingAfterStatusSaved(
-          $_POST['no_rawat'],
-          $_POST['nosep'],
-          $jenis_klaim,
-          $_POST['status']
-        );
+        if (!empty($_POST['bypass_grouping'])) {
+          $this->_markVedikaDcSent($_POST['nosep']);
+        } else {
+          $this->_queueGroupingAfterStatusSaved(
+            $_POST['no_rawat'],
+            $_POST['nosep'],
+            $jenis_klaim,
+            $_POST['status']
+          );
+        }
       }
     }
 
@@ -1072,7 +1147,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -1255,6 +1330,8 @@ class Admin extends AdminModule
   public function anyKronis($type = 'ralan', $page = 1)
   {
 
+    $this->_ensureKronisTables();
+
     if (isset($_POST['submit'])) {
       if (!$this->db('mlite_veronisa')->where('nosep', $_POST['nosep'])->oneArray()) {
         $simpan_status = $this->db('mlite_veronisa')->save([
@@ -1331,12 +1408,12 @@ class Admin extends AdminModule
     $totalRecords->execute(['%' . $phrase . '%', '%' . $phrase . '%', '%' . $phrase . '%']);
     $totalRecords = $totalRecords->fetchAll();
 
-    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'kronis', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]));
+    $pagination = new \Systems\Lib\Pagination($page, count($totalRecords), $perpage, url([ADMIN, 'vedika', 'kronis', $type, '%d?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . rawurlencode($poli)]));
     $this->assign['pagination'] = $pagination->nav('pagination', '5');
     $this->assign['totalRecords'] = $totalRecords; 
 
     $offset = $pagination->offset();$nomor = $offset + 1;
-    $query = $this->db()->pdo()->prepare("SELECT reg_periksa.*, pasien.*, dokter.nm_dokter, poliklinik.nm_poli, penjab.png_jawab 
+    $query = $this->db()->pdo()->prepare("SELECT reg_periksa.*, reg_periksa.kd_pj AS reg_kd_pj, pasien.*, dokter.nm_dokter, poliklinik.nm_poli, penjab.png_jawab 
     FROM reg_periksa
     INNER JOIN pasien on reg_periksa.no_rkm_medis = pasien.no_rkm_medis
     INNER JOIN dokter on reg_periksa.kd_dokter = dokter.kd_dokter
@@ -1359,17 +1436,31 @@ class Admin extends AdminModule
 
         $no_peserta = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
 
+        // Simpan penjamin sebelum escaping karena nilainya menentukan sumber SEP.
+        $kdPjKronis = (string) ($row['reg_kd_pj'] ?? $row['kd_pj'] ?? '');
         $row = htmlspecialchars_array($row);    
         $row['formVclaimURL'] = url([ADMIN, 'vedika', 'formsep', '?no_asuransi=' . $no_peserta .'&no_rawat='.$row['no_rawat']]);        
         $row['nomor'] = $nomor++;
-        $row['no_sep'] = $this->_getSEPInfo('no_sep', $row['no_rawat']);
-        $row['no_peserta'] = $this->_getSEPInfo('no_kartu', $row['no_rawat']);
-        $row['no_rujukan'] = $this->_getSEPInfo('no_rujukan', $row['no_rawat']);
+        $existingSep = $this->_getSEPInfo('no_sep', $row['no_rawat']);
+        $kronisSep = $kdPjKronis !== 'BPJ' ? $this->_getKronisSep($row['no_rawat']) : [];
+        $sourceSep = $kdPjKronis === 'BPJ' ? $existingSep : (string) ($kronisSep['no_sep'] ?? '');
+        $row['no_sep'] = $sourceSep;
+        $row['no_peserta'] = $kdPjKronis === 'BPJ'
+          ? $this->_getSEPInfo('no_kartu', $row['no_rawat'])
+          : (string) ($kronisSep['no_kartu'] ?? '');
+        $row['no_rujukan'] = $kdPjKronis === 'BPJ'
+          ? $this->_getSEPInfo('no_rujukan', $row['no_rawat'])
+          : (string) ($kronisSep['no_rujukan'] ?? '');
+        $row['is_bpj'] = $kdPjKronis === 'BPJ';
+        $row['kronis_sep_source'] = $kronisSep['source_no_sep'] ?? '';
         $row['berkas_digital'] = $berkas_digital;
-        $row['formSepURL'] = url([ADMIN, 'veronisa', 'formsepvclaim', '?no_rawat=' . $row['no_rawat']]);
-        $row['pdfURL'] = url([ADMIN, 'veronisa', 'pdf', $this->convertNorawat($row['no_rawat'])]);
-        $row['setstatusURL']  = url([ADMIN, 'veronisa', 'setstatus', $this->_getSEPInfo('no_sep', $row['no_rawat'])]);
-        $row['status_pengajuan'] = $this->db('mlite_veronisa')->where('nosep', $this->_getSEPInfo('no_sep', $row['no_rawat']))->desc('id')->limit(1)->toArray();
+        $row['formSepURL'] = url([ADMIN, 'vedika', 'kronissephistory', $this->convertNorawat($row['no_rawat'])]);
+        // SEP BPJ yang sudah ada tidak boleh diganti. Non-BPJ tetap dapat
+        // memilih SEP sumber, termasuk bila sudah memiliki SEP lokal.
+        // SEP BPJ hanya dibaca dari bridging_sep dan tidak boleh diganti dari riwayat.
+        $row['canBrowseSep'] = $kdPjKronis !== 'BPJ';
+        $row['labHistoryURL'] = url([ADMIN, 'vedika', 'kronislabhistory', $this->convertNorawat($row['no_rawat'])]);
+        $row['pdfURL'] = url([ADMIN, 'vedika', 'pdfobatkronis', $this->convertNorawat($row['no_rawat'])]);
         $row['berkasPasien'] = url([ADMIN, 'vedika', 'berkaspasien', $this->getRegPeriksaInfo('no_rkm_medis', $row['no_rawat'])]);
         $row['berkasPerawatan'] = url([ADMIN, 'vedika', 'berkasperawatan', $this->convertNorawat($row['no_rawat'])]);
         $this->assign['list'][] = $row;
@@ -1379,7 +1470,9 @@ class Admin extends AdminModule
     $this->core->addCSS(url('assets/jscripts/lightbox/lightbox.min.css'));
     $this->core->addJS(url('assets/jscripts/lightbox/lightbox.min.js'));
 
-    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'kronis', $type, $page . '?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date]);
+    // Pencarian selalu dimulai dari halaman pertama agar offset halaman lama
+    // tidak membuat hasil yang sebenarnya ada terlihat kosong.
+    $this->assign['searchUrl'] =  url([ADMIN, 'vedika', 'kronis', $type, '1?s=' . $phrase . '&start_date=' . $start_date . '&end_date=' . $end_date . '&poli=' . rawurlencode($poli)]);
     return $this->draw('kronis.html', ['tab' => $type, 'vedika' => $this->assign]);
   }
 
@@ -1408,7 +1501,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -1638,7 +1731,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -1933,7 +2026,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -2229,7 +2322,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -2533,9 +2626,9 @@ class Admin extends AdminModule
       $row['status'];
       // $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
       // $row['kd_prosedur'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
-      // $get_feedback_bpjs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
+      // $get_feedback_bpjs = $this->db('mlite_vedika_feedback_log')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
       // $row['konfirmasi_bpjs'] = $get_feedback_bpjs['catatan'];
-      // $get_feedback_rs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
+      // $get_feedback_rs = $this->db('mlite_vedika_feedback_log')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
       // $row['konfirmasi_rs'] = $get_feedback_rs['catatan'];
       $display[] = $row;
     }
@@ -2576,9 +2669,9 @@ class Admin extends AdminModule
       $row['nosep'] = $this->_getSEPInfo('no_sep', $row['no_rawat']);
       // $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
       // $row['kd_prosedur'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
-      // $get_feedback_bpjs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
+      // $get_feedback_bpjs = $this->db('mlite_vedika_feedback_log')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
       // $row['konfirmasi_bpjs'] = $get_feedback_bpjs['catatan'];
-      // $get_feedback_rs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
+      // $get_feedback_rs = $this->db('mlite_vedika_feedback_log')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
       // $row['konfirmasi_rs'] = $get_feedback_rs['catatan'];
       $display[] = $row;
     }
@@ -2622,9 +2715,9 @@ class Admin extends AdminModule
       $row['no_peserta'] = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
     //   $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
     //   $row['kd_prosedur'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
-    //   $get_feedback_bpjs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
+    //   $get_feedback_bpjs = $this->db('mlite_vedika_feedback_log')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
     //   $row['konfirmasi_bpjs'] = $get_feedback_bpjs['catatan'];
-    //   $get_feedback_rs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
+    //   $get_feedback_rs = $this->db('mlite_vedika_feedback_log')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
     //   $row['konfirmasi_rs'] = $get_feedback_rs['catatan'];
       $display[] = $row;
     }
@@ -2663,9 +2756,9 @@ class Admin extends AdminModule
       $row['no_peserta'] = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
       $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
       $row['kd_prosedur'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
-      $get_feedback_bpjs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
+      $get_feedback_bpjs = $this->_getVedikaFeedback($row['nosep'], 'bpjs');
       $row['konfirmasi_bpjs'] = $get_feedback_bpjs['catatan'];
-      $get_feedback_rs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
+      $get_feedback_rs = $this->_getVedikaFeedback($row['nosep'], 'bpjs', true);
       $row['konfirmasi_rs'] = $get_feedback_rs['catatan'];
       $display[] = $row;
     }
@@ -2704,9 +2797,9 @@ class Admin extends AdminModule
       $row['no_peserta'] = $this->core->getPasienInfo('no_peserta', $row['no_rkm_medis']);
       $row['kd_penyakit'] = $this->_getDiagnosa('kd_penyakit', $row['no_rawat'], $row['status_lanjut']);
       $row['kd_prosedur'] = $this->_getProsedur('kode', $row['no_rawat'], $row['status_lanjut']);
-      $get_feedback_bpjs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username', 'bpjs')->oneArray();
+      $get_feedback_bpjs = $this->_getVedikaFeedback($row['nosep'], 'bpjs');
       $row['konfirmasi_bpjs'] = $get_feedback_bpjs['catatan'];
-      $get_feedback_rs = $this->db('mlite_vedika_feedback')->where('nosep', $row['nosep'])->where('username','!=','bpjs')->oneArray();
+      $get_feedback_rs = $this->_getVedikaFeedback($row['nosep'], 'bpjs', true);
       $row['konfirmasi_rs'] = $get_feedback_rs['catatan'];
       $display[] = $row;
     }
@@ -2742,7 +2835,7 @@ class Admin extends AdminModule
           ]);
       }
       if ($simpan_status) {
-        $this->db('mlite_vedika_feedback')->save([
+        $this->_saveVedikaFeedback([
           'id' => NULL,
           'nosep' => $_POST['nosep'],
           'tanggal' => date('Y-m-d'),
@@ -3832,6 +3925,7 @@ class Admin extends AdminModule
       ->join('dokter', 'dokter.kd_dokter = asesmen_medis_igd.kd_dokter')
       ->where('no_rawat', $this->revertNorawat($id))
       ->oneArray();
+    $asesmen_medis_igd = $this->_applyIgdPdfPulseRule($asesmen_medis_igd, $this->revertNorawat($id));
 
     $this->tpl->set('asesmen_medis_igd', $asesmen_medis_igd);
 
@@ -4757,6 +4851,7 @@ class Admin extends AdminModule
       ->join('dokter', 'dokter.kd_dokter = asesmen_medis_igd.kd_dokter')
       ->where('no_rawat', $this->revertNorawat($id))
       ->oneArray();
+    $asesmen_medis_igd = $this->_applyIgdPdfPulseRule($asesmen_medis_igd, $this->revertNorawat($id));
 
     $this->tpl->set('asesmen_medis_igd', $asesmen_medis_igd);
 
@@ -5710,6 +5805,7 @@ class Admin extends AdminModule
       ->join('dokter', 'dokter.kd_dokter = asesmen_medis_igd.kd_dokter')
       ->where('no_rawat', $this->revertNorawat($id))
       ->oneArray();
+    $asesmen_medis_igd = $this->_applyIgdPdfPulseRule($asesmen_medis_igd, $this->revertNorawat($id));
 
     $this->tpl->set('asesmen_medis_igd', $asesmen_medis_igd);
 
@@ -6383,6 +6479,137 @@ class Admin extends AdminModule
       echo $this->_renderPDFKlaimHTML($id);
       exit();
   }
+
+  /** Render lembar khusus obat kronis beserta SEP dan lampiran lab staging. */
+  public function getPdfObatKronis($id)
+  {
+    $this->_ensureKronisTables();
+    $noRawat = $this->revertNorawat($id);
+    $reg = $this->db('reg_periksa')
+      ->select('reg_periksa.*')
+      ->select(['reg_kd_pj' => 'reg_periksa.kd_pj'])
+      ->join('pasien', 'pasien.no_rkm_medis=reg_periksa.no_rkm_medis')
+      ->join('poliklinik', 'poliklinik.kd_poli=reg_periksa.kd_poli')
+      ->where('reg_periksa.no_rawat', $noRawat)
+      ->oneArray();
+    if (!$reg) { http_response_code(404); echo 'Kunjungan tidak ditemukan'; exit(); }
+    // BPJ memakai SEP operasional. Semua penjamin selain BPJ wajib memakai
+    // snapshot SEP kronis; jangan fallback ke bridging_sep karena kunjungan
+    // konsul internal memang tidak memiliki SEP operasional sendiri.
+    $kdPjKronis = (string) ($reg['reg_kd_pj'] ?? $reg['kd_pj'] ?? '');
+    $sep = $kdPjKronis === 'BPJ'
+      ? ($this->db('bridging_sep')->where('no_rawat', $noRawat)->oneArray() ?: [])
+      : $this->_getKronisSep($noRawat);
+    // Kompatibilitas data kronis lama: beberapa instalasi menyimpan relasi
+    // SEP terpilih di mlite_veronisa sebelum tabel snapshot digunakan.
+    if (!$sep && $kdPjKronis !== 'BPJ') {
+      $linked = $this->db('mlite_veronisa')
+        ->where('no_rawat', $noRawat)
+        ->desc('id')
+        ->oneArray();
+      if (!empty($linked['nosep'])) {
+        $sep = $this->db('bridging_sep')->where('no_sep', $linked['nosep'])->oneArray() ?: [];
+      }
+    }
+    $printSep = [
+      'bridging_sep' => $sep,
+      'nama_instansi' => $this->settings->get('settings.nama_instansi'),
+      'logoURL' => url(MODULES . '/vclaim/img/bpjslogo.png'),
+      'kelas_naik' => '',
+      'bpjs_prb' => []
+    ];
+    if (!empty($sep['no_sep'])) {
+      $printSep['bpjs_prb'] = $this->db('bpjs_prb')->where('no_sep', $sep['no_sep'])->oneArray() ?: [];
+      $batas = $this->db('bridging_sep')->select('DATE_ADD(tglrujukan, INTERVAL 85 DAY) AS batas_rujukan')->where('no_sep', $sep['no_sep'])->oneArray();
+      $printSep['batas_rujukan'] = $batas['batas_rujukan'] ?? '';
+      $printSep['kelas_naik'] = ['2' => 'Kelas VIP', '3' => 'Kelas 1', '4' => 'Kelas 2'][$sep['klsnaik'] ?? ''] ?? '';
+    }
+    $pasien = $this->db('pasien')->join('kecamatan', 'kecamatan.kd_kec=pasien.kd_kec')->join('kabupaten', 'kabupaten.kd_kab=pasien.kd_kab')->where('pasien.no_rkm_medis', $reg['no_rkm_medis'])->oneArray() ?: $reg;
+    $berkasDigital = $this->db('berkas_digital_perawatan')
+      ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
+      ->where('berkas_digital_perawatan.no_rawat', $noRawat)
+      ->notLike('lokasi_file', '%pdf')
+      ->asc('master_berkas_digital.nama')
+      ->toArray();
+    $berkasDigitalPdf = $this->db('berkas_digital_perawatan')
+      ->join('master_berkas_digital', 'master_berkas_digital.kode=berkas_digital_perawatan.kode')
+      ->where('berkas_digital_perawatan.no_rawat', $noRawat)
+      ->like('lokasi_file', '%pdf')
+      ->asc('master_berkas_digital.nama')
+      ->toArray();
+    // Lampiran kronis ditampilkan langsung dari tabel detail agar nilai,
+    // rujukan, keterangan, serta tanggal mengikuti data yang disimpan.
+    $labDetailQuery = $this->db('detail_periksa_lab_kronis')
+      ->select('detail_periksa_lab_kronis.*')
+      ->select(['nm_perawatan' => 'jns_perawatan_lab.nm_perawatan'])
+      ->join('jns_perawatan_lab', 'jns_perawatan_lab.kd_jenis_prw=detail_periksa_lab_kronis.kd_jenis_prw')
+      ->where('target_no_rawat', $noRawat)
+      ->asc('tgl_periksa')
+      ->asc('jam')
+      ->toArray();
+    if (!$labDetailQuery) {
+      // Kompatibilitas lampiran lama yang hanya mengisi no_rawat.
+      $labDetailQuery = $this->db('detail_periksa_lab_kronis')
+        ->select('detail_periksa_lab_kronis.*')
+        ->select(['nm_perawatan' => 'jns_perawatan_lab.nm_perawatan'])
+        ->join('jns_perawatan_lab', 'jns_perawatan_lab.kd_jenis_prw=detail_periksa_lab_kronis.kd_jenis_prw')
+        ->where('no_rawat', $noRawat)
+        ->asc('tgl_periksa')
+        ->asc('jam')
+        ->toArray();
+    }
+    foreach ($labDetailQuery as &$detailLab) {
+      $detailLab['nilai'] = (string) ($detailLab['nilai'] ?? '');
+      $detailLab['nilai_rujukan'] = (string) ($detailLab['nilai_rujukan'] ?? '');
+      $detailLab['keterangan'] = (string) ($detailLab['keterangan'] ?? '');
+    }
+    unset($detailLab);
+    $pemeriksaanLab = $labDetailQuery;
+    $detailObat = $this->db('detail_pemberian_obat')
+      ->join('databarang', 'databarang.kode_brng=detail_pemberian_obat.kode_brng')
+      ->where('detail_pemberian_obat.no_rawat', $noRawat)
+      ->where('detail_pemberian_obat.status', 'Ralan')
+      ->toArray();
+    // Template PDF Veronisa membaca aturan pakai dari field `aturan` pada
+    // list_obat. Ambil aturan yang terkait dengan setiap obat kronis.
+    foreach ($detailObat as &$obatRow) {
+      $aturanRow = $this->db('aturan_pakai')
+        ->where('no_rawat', $noRawat)
+        ->where('kode_brng', $obatRow['kode_brng'] ?? '')
+        ->oneArray();
+      $obatRow['aturan'] = (string) ($aturanRow['aturan'] ?? '');
+    }
+    unset($obatRow);
+    $totalObat = 0;
+    foreach ($detailObat as $obatRow) $totalObat += (float) ($obatRow['total'] ?? 0);
+    $billingDetail = ['poliklinik' => ['nm_poli' => $reg['nm_poli'] ?? ''], 'detail_pemberian_obat' => $detailObat, 'periksa_lab' => [], 'periksa_radiologi' => [], 'rawat_jl_dr' => [], 'rawat_jl_pr' => [], 'rawat_jl_drpr' => [], 'operasi' => [], 'obat_operasi' => []];
+    $this->tpl->set('print_sep', $printSep);
+    $this->tpl->set('instansi', ['logo' => $this->settings->get('settings.logo'), 'nama_instansi' => $this->settings->get('settings.nama_instansi'), 'alamat' => $this->settings->get('settings.alamat'), 'kota' => $this->settings->get('settings.kota'), 'propinsi' => $this->settings->get('settings.propinsi'), 'nomor_telepon' => $this->settings->get('settings.nomor_telepon'), 'email' => $this->settings->get('settings.email')]);
+    $this->tpl->set('billing_mlite_detail', $billingDetail);
+    $this->tpl->set('billing_mlite', []);
+    $this->tpl->set('billing_mlite_settings', $this->tpl->noParse_array(htmlspecialchars_array($this->settings('settings'))));
+    $this->tpl->set('billing_mlite_pasien', $pasien);
+    $this->tpl->set('billing_mlite_qrcode', '');
+    $this->tpl->set('billing_mlite_kasir', $this->core->getUserInfo('fullname', null, true));
+    $this->tpl->set('billing_mlite_veronisa', htmlspecialchars_array($this->settings('veronisa')));
+    $this->tpl->set('pasien', $pasien);
+    $this->tpl->set('reg_periksa', $reg);
+    $this->tpl->set('dpjp_ranap', []);
+    $this->tpl->set('diagnosa_pasien', $this->db('diagnosa_pasien')->join('penyakit', 'penyakit.kd_penyakit=diagnosa_pasien.kd_penyakit')->where('no_rawat', $noRawat)->toArray());
+    $this->tpl->set('prosedur_pasien', $this->db('prosedur_pasien')->join('icd9', 'icd9.kode=prosedur_pasien.kode')->where('no_rawat', $noRawat)->toArray());
+    $this->tpl->set('pemeriksaan_ralan', $this->db('pemeriksaan_ralan')->where('no_rawat', $noRawat)->toArray());
+    $this->tpl->set('pemeriksaan_ranap', []);
+    $this->tpl->set('rawat_jl_dr', []); $this->tpl->set('rawat_jl_pr', []); $this->tpl->set('rawat_jl_drpr', []);
+    $this->tpl->set('rawat_inap_dr', []); $this->tpl->set('rawat_inap_pr', []); $this->tpl->set('rawat_inap_drpr', []);
+    $this->tpl->set('kamar_inap', []); $this->tpl->set('operasi', []); $this->tpl->set('tindakan_radiologi', []); $this->tpl->set('hasil_radiologi', []);
+    $this->tpl->set('pemeriksaan_laboratorium', []);
+    $this->tpl->set('pemeriksaan_laboratorium_kronis', $pemeriksaanLab);
+    $this->tpl->set('pemberian_obat', $detailObat); $this->tpl->set('obat_operasi', []); $this->tpl->set('laporan_operasi', []); $this->tpl->set('riwayat_obat', []); $this->tpl->set('aturan_pakai', []); $this->tpl->set('list_obat', $detailObat); $this->tpl->set('resep_obat', []);
+    $this->tpl->set('berkas_digital', $berkasDigital); $this->tpl->set('berkas_digital_pdf', $berkasDigitalPdf); $this->tpl->set('veronisa', htmlspecialchars_array($this->settings('veronisa')));
+    $this->tpl->set('total_detail_pemberian_obat', $totalObat); $this->tpl->set('total_biaya', $totalObat);
+    echo $this->_drawPDFKlaimTemplateSafely(MODULES . '/vedika/view/admin/pdfobatkronis.html');
+    exit();
+  }
   
   private function _registerPDFKlaim($no_rawat, $lokasi_file)
     {
@@ -6439,21 +6666,21 @@ class Admin extends AdminModule
   
     private function _resetPDFManifest($jobId, $no_rawat, $nosep)
     {
-      $pdo = $this->db()->pdo();
+      $pdo = $this->_getVedikaLogPdo();
 
       if ($jobId === null) {
-        $stmt = $pdo->prepare("DELETE FROM mlite_vedika_pdf_manifest
+        $stmt = $pdo->prepare("DELETE FROM mlite_vedika_pdf_manifest_log
           WHERE job_id IS NULL AND no_rawat = ? AND nosep = ?");
         $stmt->execute([$no_rawat, $nosep]);
       } else {
-        $stmt = $pdo->prepare("DELETE FROM mlite_vedika_pdf_manifest WHERE job_id = ?");
+        $stmt = $pdo->prepare("DELETE FROM mlite_vedika_pdf_manifest_log WHERE job_id = ?");
         $stmt->execute([(int) $jobId]);
       }
     }
 
     private function _insertPDFManifestRow($jobId, $no_rawat, $nosep, $urutan, $kode, $nama, $sifat, $expected, $sourceCount, $message)
     {
-      $stmt = $this->db()->pdo()->prepare("INSERT INTO mlite_vedika_pdf_manifest
+      $stmt = $this->_getVedikaLogPdo()->prepare("INSERT INTO mlite_vedika_pdf_manifest_log
         (job_id, no_rawat, nosep, urutan, kode_dokumen, nama_dokumen, sifat, expected, generated, source_count, message, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())");
       $stmt->execute([
@@ -6472,7 +6699,7 @@ class Admin extends AdminModule
 
     private function _updatePDFManifestRow($jobId, $no_rawat, $nosep, $kode, $generated, $message, $sourceCount = null)
     {
-      $pdo = $this->db()->pdo();
+      $pdo = $this->_getVedikaLogPdo();
       $params = [(int) ($generated ? 1 : 0)];
       $setSource = '';
 
@@ -6484,14 +6711,14 @@ class Admin extends AdminModule
       $params[] = substr((string) $message, 0, 500);
 
       if ($jobId === null) {
-        $sql = "UPDATE mlite_vedika_pdf_manifest
+        $sql = "UPDATE mlite_vedika_pdf_manifest_log
           SET generated = ?{$setSource}, message = ?
           WHERE job_id IS NULL AND no_rawat = ? AND nosep = ? AND kode_dokumen = ?";
         $params[] = $no_rawat;
         $params[] = $nosep;
         $params[] = $kode;
       } else {
-        $sql = "UPDATE mlite_vedika_pdf_manifest
+        $sql = "UPDATE mlite_vedika_pdf_manifest_log
           SET generated = ?{$setSource}, message = ?
           WHERE job_id = ? AND kode_dokumen = ?";
         $params[] = (int) $jobId;
@@ -6543,14 +6770,14 @@ class Admin extends AdminModule
 
     private function _getPDFManifestRows($jobId, $no_rawat, $nosep)
     {
-      $pdo = $this->db()->pdo();
+      $pdo = $this->_getVedikaLogPdo();
 
       if ($jobId === null) {
-        $stmt = $pdo->prepare("SELECT * FROM mlite_vedika_pdf_manifest
+        $stmt = $pdo->prepare("SELECT * FROM mlite_vedika_pdf_manifest_log
           WHERE job_id IS NULL AND no_rawat = ? AND nosep = ? ORDER BY urutan, id");
         $stmt->execute([$no_rawat, $nosep]);
       } else {
-        $stmt = $pdo->prepare("SELECT * FROM mlite_vedika_pdf_manifest
+        $stmt = $pdo->prepare("SELECT * FROM mlite_vedika_pdf_manifest_log
           WHERE job_id = ? ORDER BY urutan, id");
         $stmt->execute([(int) $jobId]);
       }
@@ -8042,7 +8269,7 @@ class Admin extends AdminModule
 
     private function _acquirePDFQueueLock($name, $timeout = 5)
     {
-      $stmt = $this->db()->pdo()->prepare('SELECT GET_LOCK(?, ?)');
+      $stmt = $this->_getVedikaLogPdo()->prepare('SELECT GET_LOCK(?, ?)');
       $stmt->execute([$name, (int) $timeout]);
       return (int) $stmt->fetchColumn() === 1;
     }
@@ -8050,7 +8277,7 @@ class Admin extends AdminModule
     private function _releasePDFQueueLock($name)
     {
       try {
-        $stmt = $this->db()->pdo()->prepare('SELECT RELEASE_LOCK(?)');
+        $stmt = $this->_getVedikaLogPdo()->prepare('SELECT RELEASE_LOCK(?)');
         $stmt->execute([$name]);
       } catch (\Throwable $e) {
         // Koneksi database juga akan melepas named lock secara otomatis.
@@ -8103,9 +8330,9 @@ class Admin extends AdminModule
       }
 
       try {
-        $pdo = $this->db()->pdo();
+        $pdo = $this->_getVedikaLogPdo();
         $active = $pdo->prepare("SELECT *
-          FROM mlite_vedika_pdf_queue
+          FROM mlite_vedika_pdf_queue_log
           WHERE (no_rawat = ? OR (? <> '' AND nosep = ?))
             AND status IN ('queued', 'processing')
           ORDER BY id DESC
@@ -8128,7 +8355,7 @@ class Admin extends AdminModule
         }
 
         $recyclable = $pdo->prepare("SELECT id
-          FROM mlite_vedika_pdf_queue
+          FROM mlite_vedika_pdf_queue_log
           WHERE no_rawat = ? OR (? <> '' AND nosep = ?)
           ORDER BY id DESC
           LIMIT 1");
@@ -8136,7 +8363,7 @@ class Admin extends AdminModule
         $recyclableId = $recyclable->fetchColumn();
 
         if ($recyclableId) {
-          $recycle = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+          $recycle = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
             SET no_rawat = ?,
                 nosep = ?,
                 requested_by = ?,
@@ -8169,7 +8396,7 @@ class Admin extends AdminModule
           ];
         }
 
-        $insert = $pdo->prepare("INSERT INTO mlite_vedika_pdf_queue
+        $insert = $pdo->prepare("INSERT INTO mlite_vedika_pdf_queue_log
           (no_rawat, nosep, requested_by, status, attempts, message, created_at)
           VALUES (?, ?, ?, 'queued', 0, ?, NOW())");
         $insert->execute([
@@ -8308,8 +8535,8 @@ class Admin extends AdminModule
         }
 
         $placeholders = implode(',', array_fill(0, count($jobIds), '?'));
-        $query = $this->db()->pdo()->prepare("SELECT *
-          FROM mlite_vedika_pdf_queue
+        $query = $this->_getVedikaLogPdo()->prepare("SELECT *
+          FROM mlite_vedika_pdf_queue_log
           WHERE id IN ($placeholders)
           ORDER BY id");
         $query->execute($jobIds);
@@ -8388,7 +8615,7 @@ class Admin extends AdminModule
       }
 
       try {
-        $stmt = $this->db()->pdo()->prepare("UPDATE mlite_vedika_pdf_queue
+        $stmt = $this->_getVedikaLogPdo()->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET message = ?, heartbeat_at = NOW()
           WHERE id = ? AND status = 'processing'");
         $stmt->execute([
@@ -8408,7 +8635,7 @@ class Admin extends AdminModule
        * Attempts tidak direset supaya retry tetap terbatas dan tidak infinite-loop.
        */
       try {
-        $stmt = $this->db()->pdo()->prepare("UPDATE mlite_vedika_pdf_queue
+        $stmt = $this->_getVedikaLogPdo()->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET status = 'queued',
               message = 'Auto-retry lanjutan setelah gagal 3x; menunggu worker',
               started_at = NULL,
@@ -8425,7 +8652,7 @@ class Admin extends AdminModule
 
     private function _recoverStalePDFQueueJobs()
     {
-      $pdo = $this->db()->pdo();
+      $pdo = $this->_getVedikaLogPdo();
 
       /*
        * Jangan hanya mengandalkan umur heartbeat. Worker yang dimatikan paksa
@@ -8434,7 +8661,7 @@ class Admin extends AdminModule
        * merebut job dari worker lain yang masih aktif.
        */
       $stale = $pdo->query("SELECT id, no_rawat, attempts
-        FROM mlite_vedika_pdf_queue
+        FROM mlite_vedika_pdf_queue_log
         WHERE status = 'processing'
           AND COALESCE(heartbeat_at, started_at) < DATE_SUB(NOW(), INTERVAL 2 MINUTE)");
       $jobs = $stale->fetchAll(\PDO::FETCH_ASSOC);
@@ -8448,7 +8675,7 @@ class Admin extends AdminModule
         }
 
         // Restart/kill worker bukan kegagalan dokumen; jangan habiskan jatah retry.
-        $recover = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $recover = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET status = 'queued',
               attempts = GREATEST(attempts - 1, 0),
               message = 'Worker terhenti/restart; job dikembalikan ke antrean',
@@ -8462,7 +8689,7 @@ class Admin extends AdminModule
 
     public function processPDFQueueOnce($workerId = '')
     {
-      $pdo = $this->db()->pdo();
+      $pdo = $this->_getVedikaLogPdo();
       $workerId = $workerId !== '' ? $workerId : php_uname('n') . ':' . getmypid();
       $claimLock = 'vedika_pdf_queue_claim';
       $job = null;
@@ -8480,7 +8707,7 @@ class Admin extends AdminModule
 
       try {
         $query = $pdo->query("SELECT *
-          FROM mlite_vedika_pdf_queue
+          FROM mlite_vedika_pdf_queue_log
           WHERE status = 'queued'
             AND attempts < 6
             -- Beri jeda singkat untuk job yang baru saja dikembalikan ke queue
@@ -8498,7 +8725,7 @@ class Admin extends AdminModule
           ];
         }
 
-        $claim = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $claim = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET status = 'processing',
               attempts = attempts + 1,
               message = ?,
@@ -8533,7 +8760,7 @@ class Admin extends AdminModule
          * agar menunggu worker lain tidak menghabiskan jatah retry.
          * heartbeat_at dipakai sebagai cooldown supaya worker tidak hot-loop.
          */
-        $reset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $reset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET status = 'queued',
               attempts = GREATEST(attempts - 1, 0),
               message = 'Menunggu proses PDF pasien yang sama',
@@ -8553,7 +8780,7 @@ class Admin extends AdminModule
       }
 
       try {
-        $heartbeat = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $heartbeat = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET heartbeat_at = NOW()
           WHERE id = ?");
         $heartbeat->execute([$job['id']]);
@@ -8568,7 +8795,7 @@ class Admin extends AdminModule
         if (!$success && $isWatchdogTimeout) {
           // Hang/timeout worker bukan kegagalan dokumen. Kembalikan attempt yang
           // sempat bertambah dan beri cooldown pendek sebelum worker baru mencoba.
-          $timeoutReset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+          $timeoutReset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
             SET status = 'queued',
                 attempts = GREATEST(attempts - 1, 0),
                 message = ?,
@@ -8600,7 +8827,7 @@ class Admin extends AdminModule
             : ' (akan dicoba lagi)';
         }
 
-        $finish = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $finish = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET status = ?,
               message = ?,
               finished_at = CASE WHEN ? IN ('done', 'failed') THEN NOW() ELSE NULL END,
@@ -8633,7 +8860,7 @@ class Admin extends AdminModule
         $isWatchdogTimeout = strpos((string) $errorMessage, 'VEDIKA_WATCHDOG_TIMEOUT:') === 0;
 
         if ($isWatchdogTimeout) {
-          $timeoutReset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+          $timeoutReset = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
             SET status = 'queued',
                 attempts = GREATEST(attempts - 1, 0),
                 message = ?,
@@ -8662,7 +8889,7 @@ class Admin extends AdminModule
             : ' (akan dicoba lagi)';
         }
 
-        $failed = $pdo->prepare("UPDATE mlite_vedika_pdf_queue
+        $failed = $pdo->prepare("UPDATE mlite_vedika_pdf_queue_log
           SET status = ?,
               message = ?,
               finished_at = CASE WHEN ? = 'failed' THEN NOW() ELSE NULL END,
@@ -9657,6 +9884,208 @@ class Admin extends AdminModule
       ];
     }
 
+  /**
+   * Menyiapkan tabel staging kronis tanpa mengubah tabel operasional.
+   * Snapshot SEP dan hasil laboratorium sengaja memiliki kunci internal sendiri,
+   * karena satu SEP sumber dapat dipakai oleh lebih dari satu kunjungan kronis.
+   */
+  private function _ensureKronisTables()
+  {
+    $pdo = $this->db()->pdo();
+    $pdo->exec('CREATE TABLE IF NOT EXISTS `bridging_sep_kronis` LIKE `bridging_sep`');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS `periksa_lab_kronis` LIKE `periksa_lab`');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS `detail_periksa_lab_kronis` LIKE `detail_periksa_lab`');
+
+    $alter = function ($table, $sql) use ($pdo) {
+      try { $pdo->exec($sql); } catch (\Throwable $e) { /* sudah diterapkan pada instalasi ini */ }
+    };
+    $columns = function ($table) use ($pdo) {
+      $stmt = $pdo->query('SHOW COLUMNS FROM `' . $table . '`');
+      $out = [];
+      foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $col) $out[$col['Field']] = true;
+      return $out;
+    };
+
+    $sepCols = $columns('bridging_sep_kronis');
+    if (!isset($sepCols['id'])) {
+      $alter('bridging_sep_kronis', 'ALTER TABLE `bridging_sep_kronis` DROP PRIMARY KEY, ADD COLUMN `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT FIRST, ADD PRIMARY KEY (`id`)');
+    }
+    $sepCols = $columns('bridging_sep_kronis');
+    if (!isset($sepCols['source_no_sep'])) $alter('bridging_sep_kronis', 'ALTER TABLE `bridging_sep_kronis` ADD COLUMN `source_no_sep` varchar(40) NOT NULL DEFAULT "" AFTER `no_sep`');
+    if (!isset($sepCols['source_no_rawat'])) $alter('bridging_sep_kronis', 'ALTER TABLE `bridging_sep_kronis` ADD COLUMN `source_no_rawat` varchar(17) NOT NULL DEFAULT "" AFTER `source_no_sep`');
+    if (!isset($sepCols['copied_at'])) $alter('bridging_sep_kronis', 'ALTER TABLE `bridging_sep_kronis` ADD COLUMN `copied_at` datetime NULL AFTER `source_no_rawat`');
+    if (!isset($sepCols['copied_by'])) $alter('bridging_sep_kronis', 'ALTER TABLE `bridging_sep_kronis` ADD COLUMN `copied_by` varchar(50) NOT NULL DEFAULT "" AFTER `copied_at`');
+
+    foreach (['periksa_lab_kronis', 'detail_periksa_lab_kronis'] as $table) {
+      $cols = $columns($table);
+      if (!isset($cols['source_no_rawat'])) {
+        $alter($table, 'ALTER TABLE `' . $table . '` ADD COLUMN `source_no_rawat` varchar(17) NOT NULL DEFAULT ""');
+      }
+      if (!isset($cols['target_no_rawat'])) {
+        $alter($table, 'ALTER TABLE `' . $table . '` ADD COLUMN `target_no_rawat` varchar(17) NOT NULL DEFAULT ""');
+      }
+    }
+  }
+
+  private function _getKronisSep($targetNoRawat)
+  {
+    $this->_ensureKronisTables();
+    $targetNoRawat = trim((string) $targetNoRawat);
+    $stmt = $this->db()->pdo()->prepare(
+      'SELECT * FROM bridging_sep_kronis
+       WHERE TRIM(no_rawat) = TRIM(?)
+       ORDER BY id DESC LIMIT 1'
+    );
+    $stmt->execute([$targetNoRawat]);
+    $sep = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$sep) {
+      // Kompatibilitas snapshot lama yang pernah menyimpan nomor rawat
+      // tanpa slash.
+      $compact = str_replace('/', '', $targetNoRawat);
+      $fallback = $this->db()->pdo()->prepare(
+        'SELECT * FROM bridging_sep_kronis
+         WHERE REPLACE(TRIM(no_rawat), \'/\', \'\') = ?
+         ORDER BY id DESC LIMIT 1'
+      );
+      $fallback->execute([$compact]);
+      $sep = $fallback->fetch(\PDO::FETCH_ASSOC);
+    }
+    return $sep ?: [];
+  }
+
+  public function getKronisSepHistory($id)
+  {
+    $this->_ensureKronisTables();
+    $targetNoRawat = $this->revertNorawat($id);
+    $target = $this->db('reg_periksa')->where('no_rawat', $targetNoRawat)->oneArray();
+    if (!$target) {
+      echo $this->draw('kronissephistory.html', ['kronis' => ['error' => 'Kunjungan kronis tidak ditemukan.']]);
+      exit();
+    }
+    $stmt = $this->db()->pdo()->prepare(
+      'SELECT bs.* FROM bridging_sep bs
+       WHERE bs.nomr = ? AND bs.tglsep BETWEEN DATE_SUB(?, INTERVAL 1 MONTH) AND ?
+       ORDER BY bs.tglsep DESC, bs.no_sep DESC LIMIT 100'
+    );
+    $claimDate = $target['tgl_registrasi'];
+    $stmt->execute([$target['no_rkm_medis'], $claimDate, $claimDate]);
+    $history = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $medicationStmt = $this->db()->pdo()->prepare(
+      'SELECT dpo.tgl_perawatan, dpo.jam, dpo.kode_brng, dpo.jml,
+              db.nama_brng, ap.aturan
+       FROM detail_pemberian_obat dpo
+       INNER JOIN databarang db ON db.kode_brng = dpo.kode_brng
+       LEFT JOIN aturan_pakai ap ON ap.no_rawat = dpo.no_rawat
+                                AND ap.kode_brng = dpo.kode_brng
+       WHERE dpo.no_rawat = ?
+       ORDER BY dpo.tgl_perawatan, dpo.jam, db.nama_brng'
+    );
+    foreach ($history as &$item) {
+      $item['selected'] = ($this->_getKronisSep($targetNoRawat)['source_no_sep'] ?? '') === ($item['no_sep'] ?? '');
+      $sourceNoRawat = trim((string) ($item['no_rawat'] ?? ''));
+      $medicationStmt->execute([$sourceNoRawat]);
+      $item['obat'] = $medicationStmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+    unset($item);
+    echo $this->draw('kronissephistory.html', ['kronis' => [
+      'target_no_rawat' => $targetNoRawat,
+      'no_rkm_medis' => $target['no_rkm_medis'],
+      'claim_date' => $claimDate,
+      'history' => $history,
+      'copy_url' => url([ADMIN, 'vedika', 'kronissephistory', $id, '?t=' . $_SESSION['token']]),
+    ]]);
+    exit();
+  }
+
+  public function postKronisSepHistory($id)
+  {
+    $this->_ensureKronisTables();
+    $targetNoRawat = $this->revertNorawat($id);
+    $sourceNoSep = trim((string) ($_POST['source_no_sep'] ?? ''));
+    $pdo = $this->db()->pdo();
+    $targetStmt = $pdo->prepare('SELECT no_rkm_medis, tgl_registrasi FROM reg_periksa WHERE no_rawat = ? LIMIT 1');
+    $targetStmt->execute([$targetNoRawat]);
+    $target = $targetStmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$target || $sourceNoSep === '') return $this->jsonResponse(['ok' => false, 'message' => 'SEP tujuan atau SEP sumber tidak lengkap.']);
+    $sourceStmt = $pdo->prepare('SELECT * FROM bridging_sep WHERE no_sep = ? AND nomr = ? AND tglsep BETWEEN DATE_SUB(?, INTERVAL 1 MONTH) AND ? LIMIT 1');
+    $sourceStmt->execute([$sourceNoSep, $target['no_rkm_medis'], $target['tgl_registrasi'], $target['tgl_registrasi']]);
+    $source = $sourceStmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$source) return $this->jsonResponse(['ok' => false, 'message' => 'SEP tidak ditemukan dalam satu bulan sebelum tanggal klaim.']);
+
+    $exists = $pdo->prepare('SELECT id FROM bridging_sep_kronis WHERE no_rawat = ? AND source_no_sep = ? LIMIT 1');
+    $exists->execute([$targetNoRawat, $sourceNoSep]);
+    if (!$exists->fetchColumn()) {
+      $source['source_no_sep'] = $source['no_sep'];
+      $source['source_no_rawat'] = $source['no_rawat'];
+      $source['no_rawat'] = $targetNoRawat;
+      $source['copied_at'] = date('Y-m-d H:i:s');
+      $source['copied_by'] = (string) $this->core->getUserInfo('username', null, true);
+      unset($source['id']);
+      $cols = array_keys($source);
+      $sql = 'INSERT INTO bridging_sep_kronis (' . implode(',', array_map(function ($c) { return '`' . $c . '`'; }, $cols)) . ') VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')';
+      $pdo->prepare($sql)->execute(array_values($source));
+    }
+    return $this->jsonResponse(['ok' => true, 'message' => 'SEP berhasil dipakai untuk klaim kronis.']);
+  }
+
+  public function getKronisLabHistory($id)
+  {
+    $this->_ensureKronisTables();
+    $targetNoRawat = $this->revertNorawat($id);
+    $target = $this->db('reg_periksa')->where('no_rawat', $targetNoRawat)->oneArray();
+    if (!$target || empty($target['no_rkm_medis'])) {
+      echo $this->draw('kronislabhistory.html', ['lab' => ['error' => 'Registrasi tujuan tidak ditemukan.']]);
+      exit();
+    }
+    $pdo = $this->db()->pdo();
+    $stmt = $pdo->prepare('SELECT pl.*, COALESCE(jpl.nm_perawatan, pl.kd_jenis_prw) AS nm_perawatan, rp.tgl_registrasi AS tgl_kunjungan FROM periksa_lab pl INNER JOIN reg_periksa rp ON rp.no_rawat = pl.no_rawat LEFT JOIN jns_perawatan_lab jpl ON jpl.kd_jenis_prw = pl.kd_jenis_prw WHERE rp.no_rkm_medis = ? AND pl.no_rawat <> ? ORDER BY pl.tgl_periksa DESC, pl.jam DESC LIMIT 300');
+    $stmt->execute([$target['no_rkm_medis'], $targetNoRawat]);
+    $history = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $detailStmt = $pdo->prepare('SELECT dpl.*, COALESCE(tl.Pemeriksaan, dpl.id_template) AS nama_detail FROM detail_periksa_lab dpl LEFT JOIN template_laboratorium tl ON tl.id_template = dpl.id_template WHERE dpl.no_rawat = ? AND dpl.kd_jenis_prw = ? AND dpl.tgl_periksa = ? AND dpl.jam = ? ORDER BY dpl.id_template');
+    foreach ($history as &$item) {
+      $detailStmt->execute([$item['no_rawat'], $item['kd_jenis_prw'], $item['tgl_periksa'], $item['jam']]);
+      $item['details'] = $detailStmt->fetchAll(\PDO::FETCH_ASSOC);
+      $item['selection_key'] = $this->_encodeLabHistoryKey($item);
+    }
+    unset($item);
+    echo $this->draw('kronislabhistory.html', ['lab' => [
+      'target_no_rawat' => $targetNoRawat, 'no_rkm_medis' => $target['no_rkm_medis'], 'history' => $history,
+      'copy_url' => url([ADMIN, 'vedika', 'kronislabhistory', $id, '?t=' . $_SESSION['token']]),
+    ]]);
+    exit();
+  }
+
+  public function postKronisLabHistory($id)
+  {
+    $this->_ensureKronisTables();
+    $_POST['target_no_rawat'] = $this->revertNorawat($id);
+    $selected = isset($_POST['lab_items']) && is_array($_POST['lab_items']) ? $_POST['lab_items'] : [];
+    if (!$selected) return $this->_labJsonResponse(['ok' => false, 'message' => 'Pilih minimal satu pemeriksaan laboratorium.']);
+    $pdo = $this->db()->pdo();
+    $targetStmt = $pdo->prepare('SELECT no_rkm_medis FROM reg_periksa WHERE no_rawat = ? LIMIT 1');
+    $targetStmt->execute([$_POST['target_no_rawat']]);
+    $target = $targetStmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$target) return $this->_labJsonResponse(['ok' => false, 'message' => 'Registrasi tujuan tidak ditemukan.']);
+    $sourceStmt = $pdo->prepare('SELECT pl.* FROM periksa_lab pl INNER JOIN reg_periksa rp ON rp.no_rawat = pl.no_rawat WHERE rp.no_rkm_medis = ? AND pl.no_rawat = ? AND pl.kd_jenis_prw = ? AND pl.tgl_periksa = ? AND pl.jam = ? LIMIT 1');
+    $detailStmt = $pdo->prepare('SELECT * FROM detail_periksa_lab WHERE no_rawat = ? AND kd_jenis_prw = ? AND tgl_periksa = ? AND jam = ?');
+    $headers = 0; $details = 0;
+    try {
+      $pdo->beginTransaction();
+      foreach ($selected as $encoded) {
+        $key = $this->_decodeLabHistoryKey($encoded); if (!$key) continue;
+        $sourceStmt->execute([$target['no_rkm_medis'], $key['no_rawat'], $key['kd_jenis_prw'], $key['tgl_periksa'], $key['jam']]);
+        $header = $sourceStmt->fetch(\PDO::FETCH_ASSOC); if (!$header) continue;
+        $sourceNoRawat = $header['no_rawat'];
+        $header['source_no_rawat'] = $sourceNoRawat; $header['target_no_rawat'] = $_POST['target_no_rawat']; $header['no_rawat'] = $_POST['target_no_rawat'];
+        $headers += $this->_insertLabRowIgnore('periksa_lab_kronis', $header);
+        $detailStmt->execute([$sourceNoRawat, $key['kd_jenis_prw'], $key['tgl_periksa'], $key['jam']]);
+        foreach ($detailStmt->fetchAll(\PDO::FETCH_ASSOC) as $detail) { $detail['source_no_rawat'] = $sourceNoRawat; $detail['target_no_rawat'] = $_POST['target_no_rawat']; $detail['no_rawat'] = $_POST['target_no_rawat']; $details += $this->_insertLabRowIgnore('detail_periksa_lab_kronis', $detail); }
+      }
+      $pdo->commit();
+      return $this->_labJsonResponse(['ok' => true, 'message' => "Selesai. {$headers} hasil laboratorium dan {$details} detail disimpan sebagai lampiran kronis."]);
+    } catch (\Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); return $this->_labJsonResponse(['ok' => false, 'message' => 'Gagal menyimpan lampiran laboratorium: ' . $e->getMessage()]); }
+  }
+
   public function getLabHistory($id)
   {
     $targetNoRawat = revertNoRawat($id);
@@ -9802,10 +10231,10 @@ class Admin extends AdminModule
 
   private function _prepareLabCopyAudit()
   {
-    $pdo = $this->db()->pdo();
+    $pdo = $this->_getVedikaLogPdo();
     try {
       $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS `mlite_vedika_lab_copy_audit` (
+        "CREATE TABLE IF NOT EXISTS `mlite_vedika_lab_copy_audit_log` (
           `id` bigint unsigned NOT NULL AUTO_INCREMENT,
           `target_no_rawat` varchar(17) NOT NULL,
           `source_no_rawat` varchar(17) NOT NULL,
@@ -9822,7 +10251,7 @@ class Admin extends AdminModule
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1"
       );
       return $pdo->prepare(
-        'INSERT INTO mlite_vedika_lab_copy_audit
+        'INSERT INTO mlite_vedika_lab_copy_audit_log
          (target_no_rawat, source_no_rawat, kd_jenis_prw, source_tgl_periksa,
           source_jam, copied_header, copied_details, copied_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
@@ -9857,7 +10286,7 @@ class Admin extends AdminModule
 
   private function _insertLabRowIgnore($table, array $row)
   {
-    if (!in_array($table, ['periksa_lab', 'detail_periksa_lab'], true) || !$row) {
+    if (!in_array($table, ['periksa_lab', 'detail_periksa_lab', 'periksa_lab_kronis', 'detail_periksa_lab_kronis'], true) || !$row) {
       throw new \RuntimeException('Tabel laboratorium tidak diizinkan.');
     }
     $columns = array_keys($row);
@@ -9878,6 +10307,9 @@ class Admin extends AdminModule
   public function getSetStatus($id)
   {
     $set_status = $this->db('bridging_sep')->where('no_sep', $id)->oneArray();
+    if (!$set_status) {
+      $set_status = $this->db('bridging_sep_kronis')->where('no_sep', $id)->desc('id')->limit(1)->oneArray();
+    }
     $jenis = $this->db('mlite_vedika')->where('nosep', $id)->oneArray();
     $vedika = $this->db('mlite_vedika')
     ->join('mlite_users','mlite_users.username=mlite_vedika.username')
@@ -9975,6 +10407,90 @@ class Admin extends AdminModule
     redirect(url([ADMIN, 'vedika', 'index']));
   }
 
+  /**
+   * Mengambil berat lahir otomatis untuk bayi usia 0 sampai 28 hari.
+   * Sumber berat disesuaikan dengan jenis kunjungan: pemeriksaan_ranap untuk
+   * Ranap, pemeriksaan_ralan untuk Ralan non-IGD, serta asesmen/triase IGD
+   * untuk poli IGDK. E-Klaim menerima birth_weight dalam gram.
+   */
+  private function _getAutoBirthWeight($noRawat, $tglLahir, $tglRegistrasi)
+  {
+    try {
+      $birthDate = new \DateTimeImmutable(substr(trim((string) $tglLahir), 0, 10));
+      $registrationDate = new \DateTimeImmutable(substr(trim((string) $tglRegistrasi), 0, 10));
+      $ageDays = (int) $birthDate->diff($registrationDate)->format('%r%a');
+
+      if ($ageDays < 0 || $ageDays > 28) {
+        return null;
+      }
+
+      $statusLanjut = (string) $this->core->getRegPeriksaInfo('status_lanjut', $noRawat);
+      $kdPoli = strtoupper(trim((string) $this->core->getRegPeriksaInfo('kd_poli', $noRawat)));
+      $rawWeight = '';
+
+      if ($statusLanjut === 'Ranap') {
+        $rows = $this->db('pemeriksaan_ranap')
+          ->where('no_rawat', $noRawat)
+          ->desc('tgl_perawatan')
+          ->desc('jam_rawat')
+          ->toArray();
+        foreach ($rows as $row) {
+          if (trim((string) ($row['berat'] ?? '')) !== '') {
+            $rawWeight = $row['berat'];
+            break;
+          }
+        }
+      } elseif ($statusLanjut === 'Ralan' && $kdPoli === 'IGDK') {
+        $asesmen = $this->db('asesmen_medis_igd')->where('no_rawat', $noRawat)->oneArray();
+        $rawWeight = $asesmen['bb'] ?? '';
+        if (trim((string) $rawWeight) === '') {
+          $triase = $this->db('data_triase_igd')->where('no_rawat', $noRawat)->oneArray();
+          $rawWeight = $triase['bb'] ?? '';
+        }
+      } elseif ($statusLanjut === 'Ralan') {
+        $rows = $this->db('pemeriksaan_ralan')
+          ->where('no_rawat', $noRawat)
+          ->desc('tgl_perawatan')
+          ->desc('jam_rawat')
+          ->toArray();
+        foreach ($rows as $row) {
+          if (trim((string) ($row['berat'] ?? '')) !== '') {
+            $rawWeight = $row['berat'];
+            break;
+          }
+        }
+      }
+
+      // Bayi tetap dikirim dengan 0 jika sumber belum diisi agar kekurangan
+      // data terlihat di E-Klaim dan dapat dilengkapi petugas.
+      $rawWeight = trim((string) $rawWeight);
+      if ($rawWeight === '') {
+        return '0';
+      }
+
+      // Terima format 2.7, 2,7, 2.75 kg, maupun nilai gram 2700.
+      $normalized = str_replace(',', '.', $rawWeight);
+      $normalized = preg_replace('/[^0-9.\-]/', '', $normalized);
+      if ($normalized === '' || !is_numeric($normalized)) {
+        return '0';
+      }
+
+      $weight = (float) $normalized;
+      if ($weight <= 0) {
+        return '0';
+      }
+
+      // Nilai di bawah 100 dianggap kilogram; nilai lebih besar dianggap
+      // sudah dalam gram agar data 2700 tidak berubah menjadi 2.700.000.
+      $grams = $weight < 100 ? round($weight * 1000) : round($weight);
+      return (string) max(0, (int) $grams);
+    } catch (\Throwable $e) {
+      // Data tanggal/berat tidak valid tidak boleh menggagalkan pengiriman klaim.
+    }
+
+    return null;
+  }
+
   private function _getSEPInfo($field, $no_rawat)
   {
     $row = $this->db('bridging_sep')
@@ -9985,6 +10501,25 @@ class Admin extends AdminModule
       $row[$field] = '';
     }
     return $row[$field];
+  }
+
+  /**
+   * Menyesuaikan nadi khusus pada tampilan PDF IGD berdasarkan diagnosis.
+   * Nilai database tidak diubah; hanya salinan array yang dikirim ke template.
+   */
+  private function _applyIgdPdfPulseRule($asesmen, $noRawat)
+  {
+    if (!is_array($asesmen) || !$asesmen || trim((string) $noRawat) === '') return $asesmen;
+    $stmt = $this->db()->pdo()->prepare('SELECT kd_penyakit FROM diagnosa_pasien WHERE no_rawat = ?');
+    $stmt->execute([$noRawat]);
+    foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $code) {
+      $normalized = strtoupper(str_replace('.', '', trim((string) $code)));
+      if ($normalized === 'K30' || $normalized === 'A049' || strpos($normalized, 'R50') === 0 || strpos($normalized, 'H81') === 0) {
+        $asesmen['nadi'] = '120';
+        break;
+      }
+    }
+    return $asesmen;
   }
   
   private function _getSITB($field, $no_rkm_medis)
@@ -10158,7 +10693,7 @@ class Admin extends AdminModule
 
     // O80.9 -> Partograf (023)
     if (isset($diagnoses['O80.9'])) {
-    //   $needDocument('007', 'Lengkapi CTG');
+      $needDocument('007', 'Lengkapi CTG');
       $needDocument('023', 'Lengkapi Partograf');
     }
     
@@ -10476,9 +11011,11 @@ class Admin extends AdminModule
         . '<div class="modal-body"><div class="alert alert-danger">SOAP Poli hanya tersedia untuk pasien rawat jalan non-IGD.</div></div>';
       exit();
     }
+    // SOAP Poli disimpan per episode pemeriksaan, dengan pemilik pada kolom
+    // nik (pegawai/user yang menyimpan), bukan kd_dokter pada registrasi.
+    // Karena itu pembacaan tidak boleh memfilter nik dengan kode dokter.
     $asesmen = $this->db('pemeriksaan_ralan')
       ->where('no_rawat', $rawNoRawat)
-      ->where('nik', $regPeriksa['kd_dokter'])
       ->desc('tgl_perawatan')->desc('jam_rawat')->oneArray();
     echo $this->draw('form.asesmenpoli.html', [
       'status_lanjut' => $status_lanjut, 'reg_periksa' => $regPeriksa, 'asesmen' => $asesmen
@@ -10646,23 +11183,35 @@ class Admin extends AdminModule
         || (string) $regPeriksa['kd_poli'] === 'IGDK') {
       return $this->jsonResponse(['ok' => false, 'message' => 'SOAP Poli hanya dapat diedit untuk rawat jalan non-IGD']);
     }
-    $dokter = (string) $regPeriksa['kd_dokter'];
     $asesmen = $this->db('pemeriksaan_ralan')->where('no_rawat', $noRawat)
-      ->where('tgl_perawatan', $tglPerawatan)->where('jam_rawat', $jamRawat)
-      ->where('nik', $dokter)->oneArray();
-    if (!$asesmen) return $this->jsonResponse(['ok' => false, 'message' => 'SOAP dokter tidak ditemukan atau bukan milik dokter penanggung jawab']);
+      ->where('tgl_perawatan', $tglPerawatan)->where('jam_rawat', $jamRawat)->oneArray();
     $fields = ['suhu_tubuh','tensi','nadi','respirasi','tinggi','berat','spo','gcs',
       'kesadaran','keluhan','pemeriksaan','alergi','imun_ke','rtl','penilaian',
       'rpd','rpk','rpo','operasi','instruksi'];
     $data = [];
     foreach ($fields as $field) $data[$field] = isset($_POST[$field]) ? trim((string) $_POST[$field]) : '';
     try {
-      $this->db('pemeriksaan_ralan')->where('no_rawat', $noRawat)
-        ->where('tgl_perawatan', $tglPerawatan)->where('jam_rawat', $jamRawat)
-        ->where('nik', $dokter)->save($data);
-      return $this->jsonResponse(['ok' => true, 'message' => 'SOAP dokter berhasil diperbarui']);
+      if ($asesmen) {
+        // Pertahankan nik asli agar riwayat dan foreign key pegawai tidak
+        // berubah hanya karena SOAP diedit dari halaman Vedika.
+        $this->db('pemeriksaan_ralan')->where('no_rawat', $noRawat)
+          ->where('tgl_perawatan', $tglPerawatan)->where('jam_rawat', $jamRawat)
+          ->save($data);
+        return $this->jsonResponse(['ok' => true, 'message' => 'SOAP Poli berhasil diperbarui']);
+      }
+
+      $nik = (string) $this->core->getUserInfo('username', null, true);
+      if (!$this->db('pegawai')->where('nik', $nik)->oneArray()) {
+        return $this->jsonResponse(['ok' => false, 'message' => 'SOAP baru tidak dapat disimpan: user login belum terdaftar sebagai pegawai']);
+      }
+      $data['no_rawat'] = $noRawat;
+      $data['tgl_perawatan'] = $tglPerawatan !== '' ? $tglPerawatan : date('Y-m-d');
+      $data['jam_rawat'] = $jamRawat !== '' ? $jamRawat : date('H:i:s');
+      $data['nik'] = $nik;
+      $this->db('pemeriksaan_ralan')->save($data);
+      return $this->jsonResponse(['ok' => true, 'message' => 'SOAP Poli berhasil disimpan']);
     } catch (\Throwable $e) {
-      return $this->jsonResponse(['ok' => false, 'message' => 'SOAP dokter gagal diperbarui: ' . $e->getMessage()]);
+      return $this->jsonResponse(['ok' => false, 'message' => 'SOAP Poli gagal disimpan: ' . $e->getMessage()]);
     }
   }
   
@@ -12792,6 +13341,10 @@ class Admin extends AdminModule
     $upgrade_class_payor = $this->validTeks(trim($_POST['upgrade_class_payor']));
     $add_payment_pct   = $this->validTeks(trim($_POST['add_payment_pct']));
     $birth_weight      = $this->validTeks(trim($_POST['birth_weight']));
+    $auto_birth_weight = $this->_getAutoBirthWeight($norawat, $_POST['tgl_lahir'], $tgl_registrasi);
+    if ($auto_birth_weight !== null) {
+      $birth_weight = $auto_birth_weight;
+    }
     $discharge_status  = $this->validTeks(trim($_POST['discharge_status']));
     $diagnosa          = $this->validTeks(trim($_POST['diagnosa']));
     $procedure         = $this->validTeks(trim($_POST['procedure']));
@@ -12986,6 +13539,10 @@ class Admin extends AdminModule
     $upgrade_class_payor = $this->validTeks(trim($_POST['upgrade_class_payor']));
     $add_payment_pct   = $this->validTeks(trim($_POST['add_payment_pct']));
     $birth_weight      = $this->validTeks(trim($_POST['birth_weight']));
+    $auto_birth_weight = $this->_getAutoBirthWeight($norawat, $_POST['tgl_lahir'], $tgl_registrasi);
+    if ($auto_birth_weight !== null) {
+      $birth_weight = $auto_birth_weight;
+    }
     $discharge_status  = $this->validTeks(trim($_POST['discharge_status']));
     $diagnosa          = $this->validTeks(trim($_POST['diagnosa']));
     $procedure         = $this->validTeks(trim($_POST['procedure']));
@@ -13471,6 +14028,70 @@ class Admin extends AdminModule
     $this->jsonResponse($result['response']);
   }
 
+  /**
+   * Memeriksa klaim yang sudah diproses di e-Klaim sebelum bypass grouping.
+   * Pemeriksaan ini read-only; status lokal baru disimpan saat form dikirim.
+   */
+  public function postCekStatusDcBypass()
+  {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+      $nosep = isset($_POST['nosep']) ? $this->validTeks(trim((string) $_POST['nosep'])) : '';
+      if ($nosep === '') {
+        return $this->jsonResponse(['ok' => false, 'message' => 'Nomor SEP kosong']);
+      }
+
+      $local = $this->db('inacbg_data_terkirim')->where('no_sep', $nosep)->oneArray();
+      if ($local) {
+        return $this->jsonResponse([
+          'ok' => true,
+          'sent' => true,
+          'message' => 'Klaim sudah terkirim ke Data Center (catatan lokal).'
+        ]);
+      }
+
+      $response = $this->Request(json_encode([
+        'metadata' => ['method' => 'get_claim_data'],
+        'data' => ['nomor_sep' => $nosep]
+      ]));
+      if (!is_array($response) || (($response['metadata']['message'] ?? '') !== 'Ok')) {
+        return $this->jsonResponse([
+          'ok' => false,
+          'message' => (string) ($response['metadata']['message'] ?? 'Respons get_claim_data tidak valid')
+        ]);
+      }
+
+      $status = $this->_findClaimStatusValue($response);
+      $sent = $status !== '' && !in_array(strtolower($status), ['0', 'belum', 'belum terkirim', 'draft'], true);
+      return $this->jsonResponse([
+        'ok' => true,
+        'sent' => $sent,
+        'status' => $status,
+        'message' => $sent
+          ? 'Klaim sudah terkirim ke Data Center.'
+          : 'Klaim belum berstatus terkirim ke Data Center.'
+      ]);
+    } catch (\Throwable $e) {
+      http_response_code(502);
+      return $this->jsonResponse(['ok' => false, 'message' => 'Pemeriksaan status Data Center gagal: ' . $e->getMessage()]);
+    }
+  }
+
+  private function _findClaimStatusValue($value)
+  {
+    if (!is_array($value)) return '';
+    foreach (['klaim_status_nm', 'bpjs_klaim_status_nm', 'klaim_status_cd', 'bpjs_klaim_status_cd'] as $key) {
+      if (isset($value[$key]) && is_scalar($value[$key])) {
+        return trim((string) $value[$key]);
+      }
+    }
+    foreach ($value as $child) {
+      $found = $this->_findClaimStatusValue($child);
+      if ($found !== '') return $found;
+    }
+    return '';
+  }
+
 
   public function getKlaimPDF($nosep)
   {
@@ -13514,8 +14135,8 @@ class Admin extends AdminModule
               }
               $requestTimeout = max(1, min($requestTimeout, $remaining));
           }
-          $progress = $this->db()->pdo()->prepare(
-              "UPDATE mlite_vedika_grouping_queue
+          $progress = $this->_getVedikaLogPdo()->prepare(
+              "UPDATE mlite_vedika_grouping_queue_log
                SET message = ?, heartbeat_at = NOW()
                WHERE id = ? AND status = 'processing'"
           );
@@ -13555,8 +14176,8 @@ class Admin extends AdminModule
       curl_close($ch);
 
       if ($this->activeGroupingJobId !== null) {
-          $heartbeat = $this->db()->pdo()->prepare(
-              "UPDATE mlite_vedika_grouping_queue SET heartbeat_at = NOW()
+          $heartbeat = $this->_getVedikaLogPdo()->prepare(
+              "UPDATE mlite_vedika_grouping_queue_log SET heartbeat_at = NOW()
                WHERE id = ? AND status = 'processing'"
           );
           $heartbeat->execute([$this->activeGroupingJobId]);
@@ -14891,9 +15512,11 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         }
 
         try {
-            $pdo = $this->db()->pdo();
+            // Antrean grouping berada di database log terpisah agar tidak
+            // membebani backup database utama.
+            $pdo = $this->_getVedikaLogPdo();
             $find = $pdo->prepare(
-                'SELECT id, status FROM mlite_vedika_grouping_queue
+                'SELECT id, status FROM mlite_vedika_grouping_queue_log
                  WHERE no_rawat = ? AND nosep = ? ORDER BY id DESC LIMIT 1'
             );
             $find->execute([$noRawat, $nosep]);
@@ -14909,7 +15532,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
 
             if ($existing) {
                 $update = $pdo->prepare(
-                    "UPDATE mlite_vedika_grouping_queue
+                    "UPDATE mlite_vedika_grouping_queue_log
                      SET no_rawat = ?, nosep = ?, jenis = ?, target_status = ?,
                          requested_by = ?, coder_nik = ?, status = 'queued', attempts = 0,
                          last_step = NULL, message = NULL, created_at = NOW(),
@@ -14926,7 +15549,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             }
 
             $insert = $pdo->prepare(
-                "INSERT INTO mlite_vedika_grouping_queue
+                "INSERT INTO mlite_vedika_grouping_queue_log
                  (no_rawat, nosep, jenis, target_status, requested_by, coder_nik,
                   status, attempts, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, NOW())"
@@ -14952,17 +15575,17 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             // yang sama. Jangan mencari "failed terakhir" karena error lama akan
             // terus muncul walaupun percobaan sesudahnya sudah selesai sukses.
             if (trim((string) $nosep) !== '') {
-                $stmt = $this->db()->pdo()->prepare(
+                $stmt = $this->_getVedikaLogPdo()->prepare(
                     "SELECT status, last_step, message, finished_at
-                     FROM mlite_vedika_grouping_queue
+                     FROM mlite_vedika_grouping_queue_log
                      WHERE no_rawat = ? AND nosep = ?
                      ORDER BY id DESC LIMIT 1"
                 );
                 $stmt->execute([$noRawat, $nosep]);
             } else {
-                $stmt = $this->db()->pdo()->prepare(
+                $stmt = $this->_getVedikaLogPdo()->prepare(
                     "SELECT status, last_step, message, finished_at
-                     FROM mlite_vedika_grouping_queue
+                     FROM mlite_vedika_grouping_queue_log
                      WHERE no_rawat = ?
                      ORDER BY id DESC LIMIT 1"
                 );
@@ -14994,7 +15617,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
 
     public function processGroupingQueueOnce($workerId)
     {
-        $pdo = $this->db()->pdo();
+        $pdo = $this->_getVedikaLogPdo();
         $workerId = substr((string) $workerId, 0, 120);
 
         // Pulihkan job lama hanya jika named lock pasien memang sudah bebas.
@@ -15002,7 +15625,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         // sedang aktif menunggu respons E-Klaim dan tidak boleh dianggap mati.
         $stale = $pdo->query(
             "SELECT id, no_rawat, nosep, target_status, attempts
-             FROM mlite_vedika_grouping_queue
+             FROM mlite_vedika_grouping_queue_log
              WHERE status = 'processing'
                AND COALESCE(heartbeat_at, started_at) < DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
         );
@@ -15018,7 +15641,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
 
             $isFinalFailure = (int) $staleJob['attempts'] >= 3;
             $recover = $pdo->prepare(
-                "UPDATE mlite_vedika_grouping_queue
+                "UPDATE mlite_vedika_grouping_queue_log
                  SET status = ?, last_step = CASE WHEN ? = 1 THEN 'worker' ELSE last_step END,
                      message = ?, started_at = CASE WHEN ? = 1 THEN started_at ELSE NULL END,
                      finished_at = CASE WHEN ? = 1 THEN NOW() ELSE NULL END,
@@ -15038,7 +15661,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             // Rollback hanya untuk job yang baru saja berhasil dipindahkan ke
             // failed, bukan seluruh riwayat job failed pada setiap putaran worker.
             if ($isFinalFailure && $recover->rowCount() === 1) {
-                $rollback = $pdo->prepare(
+                $rollback = $this->db()->pdo()->prepare(
                     'DELETE FROM mlite_vedika
                      WHERE no_rawat = ? AND nosep = ? AND status = ?'
                 );
@@ -15058,7 +15681,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         $job = null;
         try {
             $select = $pdo->query(
-                "SELECT * FROM mlite_vedika_grouping_queue
+                "SELECT * FROM mlite_vedika_grouping_queue_log
                  WHERE status = 'queued' AND attempts < 3
                    AND (heartbeat_at IS NULL OR heartbeat_at <= NOW())
                  ORDER BY created_at ASC, id ASC LIMIT 1"
@@ -15066,7 +15689,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             $job = $select->fetch(\PDO::FETCH_ASSOC);
             if ($job) {
                 $claim = $pdo->prepare(
-                    "UPDATE mlite_vedika_grouping_queue
+                    "UPDATE mlite_vedika_grouping_queue_log
                      SET status = 'processing', attempts = attempts + 1,
                          message = ?, started_at = NOW(), heartbeat_at = NOW()
                      WHERE id = ? AND status = 'queued'"
@@ -15089,7 +15712,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         $patientLock = 'vedika_grouping_patient_' . sha1($job['nosep'] . '|' . $job['no_rawat']);
         if (!$this->_acquirePDFQueueLock($patientLock, 2)) {
             $retry = $pdo->prepare(
-                "UPDATE mlite_vedika_grouping_queue
+                "UPDATE mlite_vedika_grouping_queue_log
                  SET status = 'queued', message = 'Menunggu proses pasien yang sama',
                      started_at = NULL, heartbeat_at = NOW() WHERE id = ?"
             );
@@ -15122,7 +15745,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         $eklaimLock = 'vedika_grouping_eklaim_global';
         if (!$this->_acquirePDFQueueLock($eklaimLock, 2)) {
             $retry = $pdo->prepare(
-                "UPDATE mlite_vedika_grouping_queue
+                "UPDATE mlite_vedika_grouping_queue_log
                  SET status = 'queued', attempts = GREATEST(attempts - 1, 0),
                      message = 'Menunggu giliran akses E-Klaim',
                      started_at = NULL,
@@ -15170,7 +15793,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
                 // E-Klaim (mis. E2016) langsung dikembalikan kepada coder.
                 if ($this->_isTransientGroupingMessage($failureMessage) && (int) $job['attempts'] < 3) {
                     $retry = $pdo->prepare(
-                        "UPDATE mlite_vedika_grouping_queue
+                        "UPDATE mlite_vedika_grouping_queue_log
                          SET status = 'queued', last_step = ?, message = ?,
                              started_at = NULL,
                              heartbeat_at = DATE_ADD(NOW(), INTERVAL 10 SECOND)
@@ -15201,7 +15824,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             }
 
             $done = $pdo->prepare(
-                "UPDATE mlite_vedika_grouping_queue
+                "UPDATE mlite_vedika_grouping_queue_log
                  SET status = 'done', last_step = ?, message = 'Grouping dan Kirim DC berhasil',
                      finished_at = NOW(), heartbeat_at = NOW() WHERE id = ?"
             );
@@ -15223,7 +15846,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
                 $this->_failBackgroundGrouping($job, 'Worker gagal: ' . $e->getMessage(), $errorStep);
             } else {
                 $retry = $pdo->prepare(
-                    "UPDATE mlite_vedika_grouping_queue
+                    "UPDATE mlite_vedika_grouping_queue_log
                      SET status = 'queued', last_step = ?, message = ?,
                          started_at = NULL,
                          heartbeat_at = DATE_ADD(NOW(), INTERVAL 10 SECOND) WHERE id = ?"
@@ -15345,38 +15968,29 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
 
     private function _failBackgroundGrouping(array $job, $message, $lastStep)
     {
-        $pdo = $this->db()->pdo();
+        $pdo = $this->_getVedikaLogPdo();
+        $mainPdo = $this->db()->pdo();
         $message = substr(trim((string) $message), 0, 65000);
         if ($message === '') {
             $message = 'Data koding tidak lolos grouping INACBG';
         }
 
-        $ownsTransaction = !$pdo->inTransaction();
-        if ($ownsTransaction) {
-            $pdo->beginTransaction();
-        }
         try {
             // Hanya tarik kembali record yang masih merupakan status yang diuji job ini.
             // Perubahan baru oleh user lain tidak ikut terhapus.
-            $delete = $pdo->prepare(
+            $delete = $mainPdo->prepare(
                 'DELETE FROM mlite_vedika
                  WHERE no_rawat = ? AND nosep = ? AND status = ?'
             );
             $delete->execute([$job['no_rawat'], $job['nosep'], $job['target_status']]);
 
             $failed = $pdo->prepare(
-                "UPDATE mlite_vedika_grouping_queue
+                "UPDATE mlite_vedika_grouping_queue_log
                  SET status = 'failed', last_step = ?, message = ?,
                      finished_at = NOW(), heartbeat_at = NOW() WHERE id = ?"
             );
             $failed->execute([substr((string) $lastStep, 0, 50), $message, $job['id']]);
-            if ($ownsTransaction) {
-                $pdo->commit();
-            }
         } catch (\Throwable $e) {
-            if ($ownsTransaction && $pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
             throw $e;
         }
     }
@@ -15448,7 +16062,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
     private function _saveGroupingRecap(array $context)
     {
         try {
-            $pdo = $this->db()->pdo();
+            $pdo = $this->_getVedikaLogPdo();
             $this->_ensureGroupingRecapTable($pdo);
 
             $noRawat = trim((string) ($context['no_rawat'] ?? ''));
@@ -15534,9 +16148,9 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             $source = $this->activeGroupingJobId !== null ? 'setstatus' : 'manual';
             $requestedBy = (string) $this->core->getUserInfo('username', null, true);
             if ($this->activeGroupingJobId !== null) {
-                $queue = $this->db('mlite_vedika_grouping_queue')
-                    ->where('id', $this->activeGroupingJobId)
-                    ->oneArray();
+                $queueStmt = $pdo->prepare('SELECT requested_by FROM mlite_vedika_grouping_queue_log WHERE id = ? LIMIT 1');
+                $queueStmt->execute([(int) $this->activeGroupingJobId]);
+                $queue = $queueStmt->fetch(\PDO::FETCH_ASSOC);
                 if ($queue && isset($queue['requested_by'])) {
                     $requestedBy = (string) $queue['requested_by'];
                 }
@@ -15544,7 +16158,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
 
             $revisionStmt = $pdo->prepare(
                 'SELECT COALESCE(MAX(revision_no), 0) + 1
-                 FROM mlite_vedika_grouping_recap WHERE no_rawat = ? AND nosep = ?'
+                 FROM mlite_vedika_grouping_recap_log WHERE no_rawat = ? AND nosep = ?'
             );
             $revisionStmt->execute([$noRawat, $nosep]);
             $revision = max(1, (int) $revisionStmt->fetchColumn());
@@ -15566,7 +16180,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
             }
 
             $insert = $pdo->prepare(
-                'INSERT INTO mlite_vedika_grouping_recap
+                'INSERT INTO mlite_vedika_grouping_recap_log
                 (no_rawat, nosep, revision_no, source, jenis_rawat, requested_by, coder_nik,
                  diagnosa_idrg, prosedur_idrg, diagnosa_inacbg, prosedur_inacbg,
                  idrg_code, idrg_description, inacbg_code, inacbg_description,
@@ -15621,7 +16235,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
         static $ready = false;
         if ($ready) return;
         $pdo->exec(
-            "CREATE TABLE IF NOT EXISTS mlite_vedika_grouping_recap (
+            "CREATE TABLE IF NOT EXISTS mlite_vedika_grouping_recap_log (
               id bigint unsigned NOT NULL AUTO_INCREMENT,
               no_rawat varchar(17) NOT NULL, nosep varchar(30) NOT NULL,
               revision_no int unsigned NOT NULL DEFAULT 1,
@@ -16239,7 +16853,7 @@ private function FinalIDRG($nomor_sep, $diagnosa, $procedure) {
     
             $nosep = isset($vedika['nosep']) ? $vedika['nosep'] : '';
     
-            $this->db('mlite_vedika_feedback')->save([
+            $this->_saveVedikaFeedback([
               'id' => NULL,
               'nosep' => $nosep,
               'tanggal' => date('Y-m-d'),

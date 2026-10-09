@@ -153,15 +153,7 @@ class Admin extends AdminModule
       $settings = $this->settings('settings');
       $this->tpl->set('settings', $this->tpl->noParse_array(htmlspecialchars_array($settings)));
 
-      $tgl_awal = date('Y-m-d');
-      $tgl_akhir = date('Y-m-d');
-
-      if(isset($_GET['tgl_awal'])) {
-        $tgl_awal = $_GET['tgl_awal'];
-      }
-      if(isset($_GET['tgl_akhir'])) {
-        $tgl_akhir = $_GET['tgl_akhir'];
-      }
+      [$tgl_awal, $tgl_akhir] = $this->requestDateRange();
 
       $jurnalharian = [];
       $rows = $this->db('mlite_jurnal')
@@ -199,19 +191,12 @@ class Admin extends AdminModule
       $settings = $this->settings('settings');
       $this->tpl->set('settings', $this->tpl->noParse_array(htmlspecialchars_array($settings)));
 
-      $tgl_awal = date('Y-m-d');
-      $tgl_akhir = date('Y-m-d');
+      [$tgl_awal, $tgl_akhir] = $this->requestDateRange();
 
-      if(isset($_GET['tgl_awal'])) {
-        $tgl_awal = $_GET['tgl_awal'];
-      }
-      if(isset($_GET['tgl_akhir'])) {
-        $tgl_akhir = $_GET['tgl_akhir'];
-      }
-
-      $query = $this->db()->pdo()->query("SELECT mlite_detailjurnal.no_jurnal, tgl_jurnal, keterangan, debet, kredit, cast((@saldo:= @saldo+kredit-debet) AS DECIMAL(12,0)) AS saldo FROM mlite_detailjurnal JOIN (SELECT @saldo := 0) as saldo_sementara JOIN mlite_jurnal ON mlite_detailjurnal.no_jurnal = mlite_jurnal.no_jurnal WHERE (mlite_jurnal.tgl_jurnal BETWEEN '$tgl_awal' AND '$tgl_akhir') ORDER BY mlite_detailjurnal.no_jurnal ASC");
-      $query->execute();
-      $bukubesar = $query->fetchAll(\PDO::FETCH_ASSOC);;
+      // Bind date filters instead of interpolating request values into SQL.
+      $query = $this->db()->pdo()->prepare("SELECT mlite_detailjurnal.no_jurnal, tgl_jurnal, keterangan, debet, kredit, cast((@saldo:= @saldo+kredit-debet) AS DECIMAL(12,0)) AS saldo FROM mlite_detailjurnal JOIN (SELECT @saldo := 0) as saldo_sementara JOIN mlite_jurnal ON mlite_detailjurnal.no_jurnal = mlite_jurnal.no_jurnal WHERE mlite_jurnal.tgl_jurnal BETWEEN :tgl_awal AND :tgl_akhir ORDER BY mlite_detailjurnal.no_jurnal ASC");
+      $query->execute([':tgl_awal' => $tgl_awal, ':tgl_akhir' => $tgl_akhir]);
+      $bukubesar = $query->fetchAll(\PDO::FETCH_ASSOC);
 
       if(isset($_GET['action']) && $_GET['action'] == 'print') {
         echo $this->draw('buku.besar.print.html', [
@@ -327,57 +312,9 @@ class Admin extends AdminModule
       $settings = $this->settings('settings');
       $this->tpl->set('settings', $this->tpl->noParse_array(htmlspecialchars_array($settings)));
 
-      $tgl_awal = date('Y-m-d');
-      $tgl_akhir = date('Y-m-d');
-
-      if(isset($_GET['tgl_awal'])) {
-        $tgl_awal = $_GET['tgl_awal'];
-      }
-      if(isset($_GET['tgl_akhir'])) {
-        $tgl_akhir = $_GET['tgl_akhir'];
-      }
-
       /*
-      $pjl=mysql_fetch_array(mysql_query("select sum(total) as total from kd_penj where tanggal between '$thn_sekarang-$bln_sekarang-1' and '$tgl_sekarang' ")) or die (mysql_error());
-      $pbl=mysql_fetch_array(mysql_query("select sum(total) as total from kd_pemb where tanggal between '$thn_sekarang-$bln_sekarang-1' and '$tgl_sekarang' ")) or die (mysql_error());
-      $psd=mysql_fetch_array(mysql_query("select jumlah from rekening where kd_rek='113'"));
-      $ret=mysql_fetch_array(mysql_query("select jumlah from rekening where kd_rek='511'"));
-      $biaya=mysql_fetch_array(mysql_query("select sum(jumlah) as jumlah from rekening where kd_rek between '611' and '699'"));
-      $pot=mysql_fetch_array(mysql_query("select sum(disc) as pot from kd_pemb where tanggal between '$thn_sekarang-$bln_sekarang-1' and '$tgl_sekarang' "));
-      $kas=mysql_fetch_array(mysql_query("select jumlah from rekening where kd_rek='111'"));
-      $hut=mysql_fetch_array(mysql_query("select jumlah from rekening where kd_rek='211'"));
-      $pemilik=mysql_fetch_array(mysql_query("select nm_perusahaan,alamat from bigbook_perusahaan")) or die ("gagal");
-      $modal=mysql_fetch_array(mysql_query("select jumlah from rekening where kd_rek='311'"));
-
-      $tampil=mysql_query("SELECT * FROM barang ORDER BY nama");
-      while($r = mysql_fetch_array($tampil)){
-          $jml=$r[stok];
-          $hrg=$r[hrg_beli];
-          $subtotal= $jml * $hrg;
-          $total1= $total1 + $subtotal; //persediaan akhir
-      }
-      $jmlretpo = $ret[jumlah]+$pot[pot];
-      $pblbersih = $pbl[total]- $jmlretpo; //pembelian bersih
-      $x2 = $pblbersih + $psd[jumlah]; //barang siap jual
-      $hpp = $x2 - $total1; //barang siap jual di kurangi persediaan akhir
-      $kotor = $pjl[total]-$hpp;
-      $pajak= $kotor * 10/100;
-      $beban= $biaya[jumlah]+$pajak;
-      $laba = $kotor-$beban;
-
-      $total = $laba - $prive[jumlah];
-      $modalakhir = $modal[jumlah] + $total;
-
-      $aktiva = $psd2[jumlah] + $kas[jumlah];
-      $passiva = $modalakhir + $hut[jumlah];
-
-      $tampil= mysql_query("SELECT * FROM barang ORDER BY nama");
-      while($r = mysql_fetch_array($tampil)){
-          $stok=$r[stok];
-          $hrg_beli=$r[hrg_beli];
-          $sub_total= $stok * $hrg_beli;
-          $persedian_akhir = $persedian_akhir + $sub_total;
-      }
+      Neraca lama pernah memakai mysql_* di sini. Perhitungannya sudah tidak aktif
+      dan nilai neraca saat ini tetap mengikuti kontrak modul yang ada.
       */
 
       /////// ******* ///////
@@ -509,6 +446,40 @@ class Admin extends AdminModule
         ]);
         $this->notify('success', 'Posting jurnal telah disimpan');
         redirect(url([ADMIN, 'keuangan', 'postingjurnal']));
+    }
+
+    /**
+     * Reads and validates the optional accounting date range from the request.
+     * Invalid values fall back to today; reversed ranges are normalized so a
+     * malformed link cannot broaden the query or produce an empty report.
+     *
+     * @return array{0:string,1:string}
+     */
+    private function requestDateRange()
+    {
+        $today = date('Y-m-d');
+        $start = $this->validRequestDate($_GET['tgl_awal'] ?? null, $today);
+        $end = $this->validRequestDate($_GET['tgl_akhir'] ?? null, $today);
+
+        if ($start > $end) {
+            [$start, $end] = [$end, $start];
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * Accepts only a real ISO date, preventing arbitrary request text from
+     * reaching the accounting query layer.
+     */
+    private function validRequestDate($value, $fallback)
+    {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return $fallback;
+        }
+
+        $date = \DateTime::createFromFormat('!Y-m-d', $value);
+        return $date && $date->format('Y-m-d') === $value ? $value : $fallback;
     }
 
     private function _addHeaderFiles()

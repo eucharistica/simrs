@@ -1,0 +1,25 @@
+{include: ../plugins/veronisa/view/admin/pdf.html}
+
+{if: $pemeriksaan_laboratorium_kronis}
+<fieldset style="page-break-before:always;border:0;padding:0;margin:0;">
+  <table rules="rows" width="100%" cellpadding="3" cellspacing="0" style="font-size:11px;font-family:verdana,sans-serif;border-collapse:collapse;">
+    <tr><td colspan="5" style="border-bottom:1px solid #222;text-align:center;"><strong style="font-size:18pt;">LAMPIRAN HASIL PEMERIKSAAN LABORATORIUM</strong></td></tr>
+    <tr>
+      <td width="20%" style="border-bottom:1px solid #222;">Pemeriksaan Laboratorium</td>
+      <td width="20%" style="border-bottom:1px solid #222;text-align:center;">Tanggal</td>
+      <td width="20%" style="border-bottom:1px solid #222;text-align:center;">Hasil</td>
+      <td width="20%" style="border-bottom:1px solid #222;text-align:center;">Nilai Rujukan</td>
+      <td width="20%" style="border-bottom:1px solid #222;text-align:center;">Keterangan</td>
+    </tr>
+    {loop: $pemeriksaan_laboratorium_kronis as $data}
+      <tr>
+        <td style="border-bottom:1px solid #222;">{$data.nm_perawatan}</td>
+        <td style="border-bottom:1px solid #222;text-align:center;">{$data.tgl_periksa} {$data.jam}</td>
+        <td style="border-bottom:1px solid #222;text-align:center;">{$data.nilai} {$data.satuan}</td>
+        <td style="border-bottom:1px solid #222;text-align:center;">{$data.nilai_rujukan}</td>
+        <td style="border-bottom:1px solid #222;">{?=nl2br($data.keterangan)?}</td>
+      </tr>
+    {/loop}
+  </table>
+</fieldset>
+{/if}

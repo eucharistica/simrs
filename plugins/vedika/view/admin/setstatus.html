@@ -117,12 +117,14 @@ $(document)
 
     if (!checkbox.prop('checked')) {
       form.data('dc-checking', false);
+      form.data('dc-allowed', false);
       info.hide().removeClass('alert-success alert-info alert-warning alert-danger').empty();
       tombol.prop('disabled', false).html('Simpan');
       return;
     }
 
     form.data('dc-checking', true);
+    form.data('dc-allowed', false);
     tombol.prop('disabled', true);
     info
       .show()
@@ -139,8 +141,10 @@ $(document)
         if (!res || !res.ok) {
           info.addClass('alert-danger').html('<i class="fa fa-exclamation-triangle"></i> ' + $('<div>').text((res && res.message) || 'Status Data Center gagal diperiksa').html());
         } else if (res.sent) {
+          form.data('dc-allowed', true);
           info.addClass('alert-success').html('<i class="fa fa-check"></i> ' + $('<div>').text(res.message).html());
         } else {
+          form.data('dc-allowed', false);
           info.addClass('alert-warning').html('<i class="fa fa-info-circle"></i> ' + $('<div>').text(res.message).html());
         }
       },
@@ -152,7 +156,7 @@ $(document)
     }).always(function(){
       if (serial !== vedikaBypassCheckSerial || !checkbox.prop('checked')) return;
       form.data('dc-checking', false);
-      tombol.prop('disabled', false).html('Simpan');
+      tombol.prop('disabled', !form.data('dc-allowed')).html('Simpan');
     });
   });
 
@@ -165,6 +169,10 @@ $(document)
     var form = $(this);
     if (form.data('dc-checking')) {
       showToast('Tunggu pemeriksaan status Data Center selesai', 'warning');
+      return;
+    }
+    if (form.find('[name="bypass_grouping"]').prop('checked') && !form.data('dc-allowed')) {
+      showToast('Bypass hanya dapat disimpan setelah klaim terdeteksi sudah terkirim ke Data Center', 'warning');
       return;
     }
     var jenis = form.find('[name="jenis"]').val();
